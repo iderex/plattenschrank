@@ -13,10 +13,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # No `name:` on this job: the "Protect main" ruleset's required status check
-  # matches the literal check-run name, which defaults to the job id
-  # ("dependency-review") when no `name:` is set. Overriding it here would
-  # rename the check run and silently break the required-status-check gate.
+  # No `name:` on this job, so the check run keeps the job id
+  # ("dependency-review") as its literal name. A ruleset requires a status check
+  # by that literal name, so renaming the job later renames the check run and a
+  # rule naming the old string then matches nothing.
+  #
+  # The ruleset on this repository requires no status check today:
+  #
+  #     gh api repos/iderex/plattenschrank/rulesets --jq '.[] | "\(.name) \(.enforcement)"'
+  #     gate  active
+  #     gh api repos/iderex/plattenschrank/rulesets/20519975 --jq '[.rules[].type]'
+  #     ["deletion","non_fast_forward","pull_request"]
+  #
+  # So nothing is broken by a rename today, and this comment records why the name
+  # is held still before that changes. Which checks the ruleset should require is
+  # issue #36.
   dependency-review:
     runs-on: ubuntu-latest
     timeout-minutes: 10
