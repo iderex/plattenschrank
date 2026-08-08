@@ -8,6 +8,12 @@ describes.
 The rule is one sentence. Every collected test carries at least one of the
 markers the scheme names, and collection fails naming the ones that do not.
 
+It also carries the disclosure that goes with the selection. Every run prints,
+before it reports a result, which of the four sets it reached and which it left
+out with what running those would need. A green run of the gated set says
+nothing about the network-bound or hardware-bound halves, and that line is what
+stops it being read as though it did.
+
 That single rule covers both shapes of the mistake. A test with no marker at all
 is the obvious one. The one worth aiming at is a test whose marker is
 misspelled, because ``@pytest.mark.unti`` reads as ``unit`` in review and is not
@@ -104,3 +110,63 @@ def pytest_collection_modifyitems(
         "marker or by carrying one the scheme does not name: "
         + ", ".join(unstated)
     )
+
+
+DISCLOSURE = "requirement markers:"
+
+
+def marker_meanings(config: pytest.Config) -> dict[str, str]:
+    """What each registered marker says it needs, read from its registration.
+
+    The sentence after the colon in the ``markers`` list is the cost of running
+    that set. It is read here rather than restated, because a second copy in a
+    workflow file or in this function would drift against the registration and
+    the drift would be invisible until somebody compared them by hand.
+    """
+    meanings = {}
+    for line in config.getini("markers"):
+        name, _, meaning = str(line).partition(":")
+        meanings[name.strip()] = meaning.strip()
+    return meanings
+
+
+def disclosure(config: pytest.Config, covered: frozenset[str]) -> str:
+    """The one line that says what this selection reached and what it left."""
+    declared = requirement_markers(config)
+    meanings = marker_meanings(config)
+    left = sorted(declared - covered)
+    reached = ", ".join(sorted(covered)) or "no marker set"
+    if not left:
+        return f"{DISCLOSURE} this run covered {reached} and left no set out."
+    costs = ", ".join(
+        f"{name} ({meanings.get(name, 'no meaning registered')})" for name in left
+    )
+    return f"{DISCLOSURE} this run covered {reached}. It did not run {costs}."
+
+
+def pytest_collection_finish(session: pytest.Session) -> None:
+    """Say what the selection left out, before any test result is printed.
+
+    A green run of the gated set is a statement about one of four marker sets,
+    and a reader who does not know that reads it as a statement about the
+    software. The network-bound and hardware-bound halves have their own harness
+    in ``.github/workflows/integration.yml``, named for what each one needs, and
+    this line is what stops a green ``build`` from standing in for them.
+
+    What it measures is which of the scheme's markers the tests that survived
+    selection actually carry, rather than what the marker expression asked for.
+    Those differ where the expression names a set no test carries yet, and the
+    honest report of that case is that the run covered nothing of it, which is
+    what this produces.
+    """
+    reporter = session.config.pluginmanager.get_plugin("terminalreporter")
+    if reporter is None:
+        # Nothing to print to, under `-p no:terminal`. The suite still runs and
+        # this line is a disclosure rather than a guard, so its absence here
+        # removes a statement rather than a refusal.
+        return
+    declared = requirement_markers(session.config)
+    covered = frozenset(
+        mark.name for item in session.items for mark in item.iter_markers()
+    ) & declared
+    reporter.write_line(disclosure(session.config, covered))
