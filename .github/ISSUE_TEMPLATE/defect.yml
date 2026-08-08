@@ -1,0 +1,60 @@
+name: Defect report
+description: Something this software did that it should not have done, or did not do that it should have.
+title: "Defect: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A defect on this board is reproduced from the data it happened on. The
+        three fields that make that possible are the collection, the plate
+        identifier and the command, and they are asked for first because a
+        report without them usually cannot be worked on.
+
+        Nothing here asks you to attach an image. Do not attach one. Whether
+        archival images may be redistributed is an open question on this
+        repository, and an attachment answers it.
+  - type: input
+    id: collection
+    attributes:
+      label: Collection
+      description: Which archive the data came from. Write "not applicable" where no archive is involved.
+      placeholder: DASCH, APPLAUSE, NAROO, DFBS, synthetic fixture
+    validations:
+      required: true
+  - type: input
+    id: plate
+    attributes:
+      label: Plate identifier
+      description: The identifier as the archive spells it, and the scan identifier where more than one scan exists. Write "not applicable" where no plate is involved.
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: The command
+      description: The exact command, and the version reported by the software when you ran it.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: What happened
+      description: Paste the output rather than describing it. Where the output is long, paste the part that changed and say what you cut.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+      description: Where a document or a decision record says it should behave differently, name the file.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Where it ran
+      description: Operating system, interpreter version, and whether the machine had a network, a display or a graphics processor available.
+    validations:
+      required: false

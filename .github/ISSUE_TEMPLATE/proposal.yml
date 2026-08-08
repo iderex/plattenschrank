@@ -1,0 +1,50 @@
+name: Proposal
+description: Something that is missing, and what it would mean for it to be finished.
+title: "Propose: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two fields carry a proposal on this board: what is missing, and what
+        done would look like. The second one is the harder of the two and it is
+        the one that decides whether the work can be finished or only worked on.
+
+        A done-condition that a person has to judge by reading is worth less
+        than one a command settles. Where it can be a command, make it one.
+  - type: textarea
+    id: missing
+    attributes:
+      label: What is missing
+      description: What does not exist today, and what goes wrong because it does not. Where the gap is measurable, give the command that measures it.
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: What done would look like
+      description: The condition under which this issue can be closed. Name the file that has to exist, the command that has to pass, or the test that has to go red when the thing it guards is removed.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: The paths this work is expected to touch, one per line. Where it is not known yet, say so rather than guessing wide.
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What else was considered
+      description: The alternatives, and what each one costs. A proposal with no rejected alternative is usually a proposal that has only been thought about once.
+    validations:
+      required: false
+  - type: checkboxes
+    id: maintainer-decision
+    attributes:
+      label: Maintainer decisions
+      description: Issue #1 collects the questions this board does not answer for itself.
+      options:
+        - label: This proposal does not assume an answer to any entry of #1, or it names the entry it needs and stops there.
+          required: true
