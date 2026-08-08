@@ -77,9 +77,26 @@ jobs:
         # leg above the only thing that touched the environment.
         run: uv run --no-sync mypy
 
-      - name: Run the default suite
+      - name: Run the default suite with no display and without elevation
         # The default selection is `-m unit`, set in `pyproject.toml`, so this
         # runs the gated set and nothing else. What it deliberately leaves out
         # is the network-bound and hardware-bound half, and #29 is what makes
         # this job print that in a line a reader of a green check can see.
-        run: uv run --no-sync pytest
+        #
+        # Two of the four conditions in
+        # `docs/decisions/0012-headless-and-cpu-by-default.md` are established
+        # here rather than assumed of the runner, because a hosted runner that
+        # happens to have no display today is not the same as a suite that
+        # cannot use one. `env -u` removes both display variables for the
+        # duration of the run, and the root check fails the leg closed rather
+        # than letting a suite that held privilege report that it did not need
+        # any. What each was is printed, so a reader of a green check can see
+        # the conditions rather than take them on trust.
+        run: |
+          set -euo pipefail
+          echo "uid=$(id -u) user=$(id -un) DISPLAY=${DISPLAY-<unset>} WAYLAND_DISPLAY=${WAYLAND_DISPLAY-<unset>}"
+          if [ "$(id -u)" -eq 0 ]; then
+            echo "::error::This leg ran as root, so it proves nothing about a suite that runs unprivileged."
+            exit 1
+          fi
+          env -u DISPLAY -u WAYLAND_DISPLAY uv run --no-sync pytest

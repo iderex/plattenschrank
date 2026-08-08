@@ -40,11 +40,26 @@ demonstrates.
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 pytest_plugins = ["pytester"]
 
 SCHEME = "requirement_markers"
+
+# The non-interactive plotting backend, selected here and not in an environment
+# variable a contributor sets on their own machine. A guard that depends on
+# somebody remembering is not a guard, and the failure it prevents is a plotting
+# call selecting a window toolkit on the first machine that has one, which turns
+# a green suite into one that hangs waiting for a window nobody will close.
+#
+# This line is the forcing and `tests/test_headless.py` is what refuses its
+# absence. The bound on both is stated there: no plotting library is in the
+# locked graph yet, so what is proved is the selection this suite makes and not
+# a backend observed in force.
+NON_INTERACTIVE_BACKEND = "Agg"
+os.environ["MPLBACKEND"] = NON_INTERACTIVE_BACKEND
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
