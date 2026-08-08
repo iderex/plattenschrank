@@ -6,9 +6,10 @@
 # carries a `Signed-off-by:` trailer matching its author, i.e. the author asserted
 # the DCO in ./DCO. Fail-closed: any unsigned commit reds the check.
 #
-# ./DCO is not in this repository, so the assertion this gate collects currently
-# points at no text. That gap is issue #30. Whether a certificate is the right
-# instrument here at all is entry 8 of issue #1 and is not settled.
+# ./DCO holds the Developer Certificate of Origin 1.1 text, added under issue
+# #30, so the assertion this gate collects points at the text a contributor is
+# asserting. Whether a certificate is the right instrument here at all is entry 8
+# of issue #1 and is not settled.
 name: DCO
 
 on:
