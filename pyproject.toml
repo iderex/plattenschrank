@@ -12,7 +12,14 @@ version = "0.0.0"
 description = "Machine learning for digitised astronomical photographic plates"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+# The numeric array library, and the only runtime dependency this package has.
+# `docs/decisions/0001-implementation-language-and-toolchain.md` chose Python for
+# this stack rather than in spite of it, and `src/plattenschrank/synthetic.py` is
+# the first module that needs it. The floor is measured rather than guessed: the
+# pull request that added it records the suite running against the resolution
+# `uv lock --resolution lowest-direct` produces, which is where the floor is the
+# version actually installed.
+dependencies = ["numpy>=1.26.0"]
 
 [project.scripts]
 plattenschrank = "plattenschrank.cli:main"
@@ -23,7 +30,20 @@ plattenschrank = "plattenschrank.cli:main"
 # `tests/test_marker_scheme.py` uses to show the default selection leaving a
 # non-unit test out. On 6.2.5 those two tests are the only ones that fail, and
 # the pull request that pinned this records the run.
-test = ["pytest>=7.0.0"]
+test = [
+    "pytest>=7.0.0",
+    # The reference FITS and WCS reader, and it is here rather than in
+    # `dependencies` for a reason that is the whole point of it.
+    # `src/plattenschrank/synthetic.py` writes FITS itself and this reads the
+    # result back, so what the suite proves is that an implementation nobody
+    # here wrote accepts those bytes. A writer proved by its own reader proves
+    # only that the file agrees with itself.
+    #
+    # Pinned exactly rather than floored, for the same reason the type checker
+    # is: this is a judge whose verdicts the suite quotes, and a range means a
+    # different judge on two days with no change to this tree.
+    "astropy==7.2.0",
+]
 # Pinned exactly rather than floored, which is the opposite of the line above
 # and for the opposite reason. A test dependency has a behaviour this suite
 # needs and older versions lack, so a floor says what it needs. A type checker
