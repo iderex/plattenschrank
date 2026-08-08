@@ -1,0 +1,86 @@
+# The one job whose check-run name a ruleset can require literally.
+#
+# The job is called `build` and the check run it produces is called `build`,
+# because a ruleset matches a check run by its name and nothing else. Renaming
+# it removes it from every ruleset that required the old name, and the removal
+# is silent: the gate stops being required and goes on reporting green. Treat
+# the name as an interface rather than a label.
+#
+# The legs run in order and the job stops at the first one that fails, which is
+# the default behaviour of a step list and is relied on here rather than
+# re-implemented. Nothing after a red leg runs, so a failure is attributed to
+# the leg that produced it.
+#
+# Which legs exist here today is not the whole set the gate is working towards.
+# `docs/gate-parity.md` holds the target one row per check, and the rows that
+# name this job are #20 for the formatter and linter, #21 for the type checker
+# in strict mode, #23 and #24 for the headless and offline proofs, #26 for the
+# dependency floor, #27 for the audit of the installed graph, and #28 for
+# coverage. Each of those adds its leg here under its own issue.
+name: build
+
+on:
+  # Both triggers, matching `unicode-guard.yml`. The pull-request trigger is
+  # what a ruleset reads. The push trigger is what makes a branch pushed
+  # without a pull request produce the same verdict, which is how a deliberate
+  # failure can be demonstrated on a scratch branch without opening one.
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+# Read-only at the top level. No leg here writes anything back to the
+# repository, and a job that cannot write cannot be turned into one that
+# publishes by an edit that nobody reads closely.
+permissions:
+  contents: read
+
+# Cancel a superseded run on the same ref. Every leg is a pure read of the
+# tree at a commit, so an obsolete run has no result worth waiting for.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # The literal a ruleset requires. Keep it and the job id the same so the
+    # two cannot drift apart.
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # No step pushes via git, so do not persist the GITHUB_TOKEN in
+          # .git/config where a later step could read it.
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
+      - name: Install in locked mode
+        # `--locked` refuses to resolve anything: it fails if `uv.lock` does not
+        # already satisfy `pyproject.toml`, so this leg reds on a dependency
+        # change that skipped the lock rather than quietly installing a graph
+        # nobody recorded. The interpreter comes from `.python-version`.
+        run: uv sync --locked --extra test
+
+      - name: Type check
+        # mypy is pinned here rather than carried in the locked graph, and that
+        # is the temporary half of this leg. #21 is what moves it into
+        # `pyproject.toml`, turns on strict mode over the whole package and adds
+        # the check that refuses a non-zero count of ignore entries. Until then
+        # this runs mypy's defaults, which is weaker than what #21 asks for and
+        # is not the same thing as a package that type checks strictly.
+        # `--no-sync` keeps the leg above the only thing that touched the
+        # locked environment.
+        run: uv run --no-sync --with mypy==2.3.0 mypy src
+
+      - name: Run the default suite
+        # The default selection is `-m unit`, set in `pyproject.toml`, so this
+        # runs the gated set and nothing else. What it deliberately leaves out
+        # is the network-bound and hardware-bound half, and #29 is what makes
+        # this job print that in a line a reader of a green check can see.
+        run: uv run --no-sync pytest
