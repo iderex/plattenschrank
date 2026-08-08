@@ -100,3 +100,32 @@ jobs:
             exit 1
           fi
           env -u DISPLAY -u WAYLAND_DISPLAY uv run --no-sync pytest
+
+      - name: Audit the installed graph
+        # `dependency-review.yml` reads what a pull request ADDS. It says
+        # nothing about what is already here, so a package that becomes
+        # vulnerable months after it landed produces no signal anywhere on this
+        # repository. This leg reads the whole graph, every run.
+        #
+        # The graph audited is the one installed, because `uv sync --locked`
+        # above installs exactly what `uv.lock` records and `uv export --locked`
+        # writes exactly the same set out. `--all-extras` means an extra added
+        # later is covered without anybody editing this line, and `--no-deps`
+        # stops the auditor resolving anything of its own: the exported file is
+        # already the transitive closure, and a resolution here would audit a
+        # graph nobody installs.
+        #
+        # `--strict` fails the leg where a dependency cannot be audited at all.
+        # An auditor that could not reach the database has not found the graph
+        # clean, and the two must not look the same.
+        #
+        # Last of the legs deliberately. Failing closed on a new advisory reds
+        # work that has nothing to do with it, which is the intended cost, and
+        # running it after the legs about the change means the log says which of
+        # the two happened rather than leaving a reader to guess.
+        env:
+          PIP_AUDIT_VERSION: "2.9.0"
+        run: |
+          set -euo pipefail
+          uv export --locked --all-extras --no-emit-project --format requirements-txt -o installed-graph.txt
+          uvx --no-build "pip-audit@${PIP_AUDIT_VERSION}" --strict --disable-pip --no-deps --requirement installed-graph.txt
