@@ -24,9 +24,43 @@ plattenschrank = "plattenschrank.cli:main"
 # non-unit test out. On 6.2.5 those two tests are the only ones that fail, and
 # the pull request that pinned this records the run.
 test = ["pytest>=7.0.0"]
+# Pinned exactly rather than floored, which is the opposite of the line above
+# and for the opposite reason. A test dependency has a behaviour this suite
+# needs and older versions lack, so a floor says what it needs. A type checker
+# has no floor: every release moves what it refuses, so a range means the gate
+# refuses a different set on two days with no change to this tree. The version
+# moves in a pull request that carries the run it changed.
+typecheck = ["mypy==2.3.0"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/plattenschrank"]
+
+[tool.mypy]
+# Strict from the first file rather than ratcheted later. A package that grows
+# untyped and then meets a checker spends its next months on an ignore list, and
+# the ignore list is what becomes permanent. Turning this on while the package
+# is three modules costs nothing; turning it on at thirty is a project.
+#
+# What this is actually against is the failure this subject has: a stage returns
+# an array of the wrong shape in the wrong units and nothing crashes. An
+# ordinary checker does not see a shape or a unit. It sees a distinct type, so
+# where a function's contract is a shape or a unit, the contract is written into
+# the signature as its own type rather than into a comment, and this setting is
+# what makes the checker hold the author to it.
+files = ["src"]
+# The floor `requires-python` declares, so the checker judges the oldest
+# interpreter this package claims rather than whichever one is installed.
+python_version = "3.12"
+strict = true
+# Not part of `strict`, and cheap here. It refuses a branch that cannot be
+# reached, which on a pipeline is usually a narrowing that already happened
+# somewhere above.
+warn_unreachable = true
+# There is no `[[tool.mypy.overrides]]` block, and its absence is the point
+# rather than an omission. `tests/test_type_checking.py` refuses one that
+# relaxes a rule, and refuses an inline `# type: ignore` in `src/`, so an ignore
+# added later has to argue for itself in a pull request instead of arriving in a
+# diff nobody reads to the bottom.
 
 [tool.pytest.ini_options]
 # Four markers and no more, one line of meaning each. `tests/conftest.py`

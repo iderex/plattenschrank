@@ -65,18 +65,17 @@ jobs:
         # already satisfy `pyproject.toml`, so this leg reds on a dependency
         # change that skipped the lock rather than quietly installing a graph
         # nobody recorded. The interpreter comes from `.python-version`.
-        run: uv sync --locked --extra test
+        run: uv sync --locked --extra test --extra typecheck
 
       - name: Type check
-        # mypy is pinned here rather than carried in the locked graph, and that
-        # is the temporary half of this leg. #21 is what moves it into
-        # `pyproject.toml`, turns on strict mode over the whole package and adds
-        # the check that refuses a non-zero count of ignore entries. Until then
-        # this runs mypy's defaults, which is weaker than what #21 asks for and
-        # is not the same thing as a package that type checks strictly.
-        # `--no-sync` keeps the leg above the only thing that touched the
-        # locked environment.
-        run: uv run --no-sync --with mypy==2.3.0 mypy src
+        # No arguments: strict mode, the interpreter version and the directory
+        # under check are all in `[tool.mypy]` in `pyproject.toml`, so what this
+        # leg refuses is readable from the repository rather than from a run
+        # log. The checker itself is pinned in the `typecheck` extra and comes
+        # out of `uv.lock` with everything else, so this leg refuses the same
+        # set on two days unless a pull request moved it. `--no-sync` keeps the
+        # leg above the only thing that touched the environment.
+        run: uv run --no-sync mypy
 
       - name: Run the default suite
         # The default selection is `-m unit`, set in `pyproject.toml`, so this
