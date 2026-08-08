@@ -1,0 +1,146 @@
+# The harnesses for the paths the gate cannot cover, each named for what it
+# needs rather than for what it is.
+#
+# A job called `integration` sitting next to a green `build` reads as though the
+# integration was done. A job called `integration (needs network)` that has not
+# run reads as what it is, and that is the whole reason these two names are
+# written the way they are. The names are an interface for a reader in the same
+# way `build` is an interface for a ruleset: renaming one of them removes the
+# thing the reader was relying on and leaves the check reporting the same
+# colour.
+#
+# Neither job is triggered by a pull request and neither is proposed as a
+# required check. `docs/decisions/0012-headless-and-cpu-by-default.md` is where
+# that was decided: a path that needs a network or a graphics processor is
+# covered here and is never counted as part of the gate.
+#
+# Both jobs are red today, and that is the state they are meant to report. No
+# test in this repository carries `integration_network` or `integration_gpu`
+# yet, and no runner here has a graphics processor, so neither harness can
+# cover the half it is named for. A green from a job that collected nothing
+# would be the exact misreading these names exist to prevent, so the empty case
+# fails and says why. The first tests to carry these markers arrive with the
+# archive adapters in #39 to #42.
+name: integration
+
+on:
+  # Manual and scheduled, and nothing else. A pull-request trigger would put
+  # these jobs in the list a reader of a pull request scans, where a red from a
+  # harness that needs hardware nobody has would be indistinguishable from a red
+  # about the change.
+  workflow_dispatch:
+  schedule:
+    # Weekly rather than nightly. What these harnesses catch is an archive that
+    # changed under us or a dependency that moved, and neither is a daily event.
+    # A schedule that reports the same thing every morning is one nobody opens.
+    - cron: "17 5 * * 1"
+
+# Deny-all at workflow level; each job grants only the read it needs.
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Not cancelled. A run here can be reaching a live archive, and cancelling it
+  # halfway leaves a reader with a log that stops rather than a verdict.
+  cancel-in-progress: false
+
+jobs:
+  network:
+    # The name a reader sees. It says what this harness needs before it says
+    # anything about what it found.
+    name: integration (needs network)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
+      - name: Install in locked mode
+        run: uv sync --locked --extra test
+
+      - name: Say what this harness covers and what it leaves out
+        # Collection alone, so the line is printed at the top of the job and
+        # before anything can fail. The line comes from `tests/conftest.py` and
+        # is derived from the marker scheme, so the sets and the cost of each
+        # cannot drift against a second copy written here.
+        #
+        # Collecting nothing exits 5, and that verdict is deliberately not read
+        # in this step: this one declares, the one below judges. Reading it
+        # twice would attribute the failure to the declaration.
+        run: |
+          set -euo pipefail
+          uv run --no-sync pytest -m integration_network --collect-only -q || true
+
+      - name: Run the network-bound set
+        # `|| status=$?` rather than a bare call, because the shell runs with
+        # `-e` and the exit code has to survive long enough to be read. 5 is
+        # pytest's code for collecting nothing, and it is the one code this
+        # harness must not pass on.
+        run: |
+          set -euo pipefail
+          status=0
+          uv run --no-sync pytest -m integration_network || status=$?
+          if [ "$status" -eq 5 ]; then
+            echo "::error::No test carries integration_network, so this harness covered nothing. A green here would read as coverage of the network-bound half."
+            exit 1
+          fi
+          exit "$status"
+
+  gpu:
+    name: integration (needs GPU)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
+      - name: Install in locked mode
+        run: uv sync --locked --extra test
+
+      - name: Say what this harness covers and what it leaves out
+        run: |
+          set -euo pipefail
+          uv run --no-sync pytest -m integration_gpu --collect-only -q || true
+
+      - name: Report whether this runner has the hardware this job is named for
+        # Before the selection, because a harness that ran its tests on a
+        # machine without the hardware has not covered the hardware-bound half
+        # whatever the tests said. `ubuntu-latest` has no graphics processor, so
+        # this step fails every run until this job is pointed at a runner that
+        # does. Pointing it there is a runner decision rather than a change to
+        # this file.
+        run: |
+          set -euo pipefail
+          if command -v nvidia-smi >/dev/null 2>&1; then
+            nvidia-smi
+            exit 0
+          fi
+          echo "::error::No graphics processor on this runner, so this harness cannot cover the half it is named for. It has not run the hardware-bound set and does not report that it did."
+          exit 1
+
+      - name: Run the hardware-bound set
+        run: |
+          set -euo pipefail
+          status=0
+          uv run --no-sync pytest -m integration_gpu || status=$?
+          if [ "$status" -eq 5 ]; then
+            echo "::error::No test carries integration_gpu, so this harness covered nothing. A green here would read as coverage of the hardware-bound half."
+            exit 1
+          fi
+          exit "$status"
