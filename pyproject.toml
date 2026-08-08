@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "plattenschrank"
+# Static, and deliberately not read from the source tree. The command reads this
+# through installed distribution metadata, so a version typed into a module
+# cannot become the answer. Issue #17 asks for exactly that property and
+# tests/test_cli.py is what refuses the other arrangement.
+version = "0.0.0"
+description = "Machine learning for digitised astronomical photographic plates"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+plattenschrank = "plattenschrank.cli:main"
+
+[project.optional-dependencies]
+# The runner decision 0001 named, unpinned here on purpose. Pinning the
+# interpreter, the direct dependencies and the resolved graph is issue #18, and
+# a bound written here now would be the copied-lower-bound that issue exists to
+# refuse.
+test = ["pytest"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/plattenschrank"]
