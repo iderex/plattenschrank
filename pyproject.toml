@@ -26,3 +26,25 @@ test = ["pytest"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/plattenschrank"]
+
+[tool.pytest.ini_options]
+# Four markers and no more, one line of meaning each. `tests/conftest.py`
+# refuses a test that carries none of them, so a requirement nobody stated
+# cannot reach the gated set.
+markers = [
+    "unit: runs anywhere, with no display, no elevation, no graphics processor and no network",
+    "integration_network: needs an archive to be reachable over the network",
+    "integration_gpu: needs a graphics processor",
+    "slow: runs long enough that it does not belong in the gate",
+]
+# Which of the markers above a test states its requirements with. It is its own
+# setting because pytest's `markers` list also carries pytest's own built-in
+# markers, and reading the scheme out of that list would let `parametrize` alone
+# count as a stated requirement. `tests/test_marker_scheme.py` refuses a name
+# here that is not registered above.
+requirement_markers = ["unit", "integration_network", "integration_gpu", "slow"]
+# The default selection is the gated set. Anything else has to be named on the
+# command line, so a test that quietly needs a network cannot arrive in the gate
+# by accident.
+addopts = "-m unit"
+testpaths = ["tests"]
