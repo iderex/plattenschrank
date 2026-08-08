@@ -18,11 +18,12 @@ dependencies = []
 plattenschrank = "plattenschrank.cli:main"
 
 [project.optional-dependencies]
-# The runner decision 0001 named, unpinned here on purpose. Pinning the
-# interpreter, the direct dependencies and the resolved graph is issue #18, and
-# a bound written here now would be the copied-lower-bound that issue exists to
-# refuse.
-test = ["pytest"]
+# The bound is measured rather than copied. 7.0.0 is where
+# `RunResult.assert_outcomes` gained its `deselected` argument, which
+# `tests/test_marker_scheme.py` uses to show the default selection leaving a
+# non-unit test out. On 6.2.5 those two tests are the only ones that fail, and
+# the pull request that pinned this records the run.
+test = ["pytest>=7.0.0"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/plattenschrank"]
