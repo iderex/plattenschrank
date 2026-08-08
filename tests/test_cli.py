@@ -20,6 +20,10 @@ from plattenschrank.cli import EXIT_NOT_IMPLEMENTED, STAGES, Stage, build_parser
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 
+# Everything here runs in a subprocess of this interpreter and touches nothing
+# outside the repository, so the whole module belongs to the gated set.
+pytestmark = pytest.mark.unit
+
 
 def run_entry_point(*args: str) -> subprocess.CompletedProcess[str]:
     """Run the entry point in a subprocess, the way an operator would.
