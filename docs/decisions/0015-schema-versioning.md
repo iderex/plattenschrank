@@ -77,3 +77,24 @@ It does not exist at the commit that adds this record:
 
 returns nothing. So the record names a version that no route compares against
 anything, and issue #16 stays open until the test exists and is proved to bite.
+
+## Where that condition was met
+
+The section above stands as it was written. What follows is what happened
+afterwards, and it does not replace it.
+
+`SCHEMA_VERSION` in `src/plattenschrank/model.py` is the version the code holds,
+and `tests/test_model.py` reads the version out of this record and refuses a
+mismatch. Both reached `main` in merge commit
+`2fad41b6af749dd41b3aeeb5b9f2c2ffe4210d5b` from pull request #108. A second test
+asserts that every measurement row carries the field, so the version is on the
+row and not only in a constant.
+
+The comparison reads this file rather than a copy of it, which is what makes the
+red arrive in both directions rather than only when the code moves.
+
+The code side is proved by
+`origin/scratch/model-reds-when-the-schema-version-moves-alone`, which moves the
+constant and leaves this record alone. The record side is proved by moving the
+version named above and leaving the constant alone, which reds the same test
+with the two values in the failure. Both runs are in issue #16.
