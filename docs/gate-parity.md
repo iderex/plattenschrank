@@ -40,7 +40,7 @@ and blocks no merge.
 | Target context | Answer on this board | Reasoning |
 | --- | --- | --- |
 | `build` | Not yet. Owed by #19. | The one check every other row leans on. Nothing compiles or runs here yet, so there is no job to name. |
-| `ABI floor build` | Deviation. Becomes a dependency floor check, owed by #26. | The target is a plugin inside a host and has to keep working against the oldest host it claims. There is no plugin host here. The equivalent risk is a dependency resolved higher than the floor the manifest declares, so the floor being tested is the dependency floor. |
+| `ABI floor build` | Deviation. Becomes the `dependency floor` check run, which exists here. | The target is a plugin inside a host and has to keep working against the oldest host it claims. There is no plugin host here. The equivalent risk is a dependency resolved higher than the floor the manifest declares, so the floor being tested is the dependency floor. |
 | `Package (JPRM) / Build package` | Deviation. Becomes the checksummed artefact build, owed by #76 with its check owed by #34. | JPRM packages a plugin for a host that installs plugins. This board ships an artefact an operator installs directly, so the packaging step exists and the tool does not. |
 | `Package (JPRM) / Generate SBOM` | Becomes a bill-of-materials check, owed by #34. | The property is the same on both boards: a released artefact declares what is inside it. Only the packaging tool that emits it differs. |
 | `CodeQL` | A single analysis job, owed by #33. | The property is static analysis published to the code scanning tab. |

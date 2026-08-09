@@ -13,9 +13,13 @@
 #
 # Which legs exist here today is not the whole set the gate is working towards.
 # `docs/gate-parity.md` holds the target one row per check, and the rows that
-# name this job are #21 for the type checker in strict mode, #23 for the headless
-# proof, #26 for the dependency floor, #27 for the audit of the installed graph,
-# and #28 for coverage. Each of those adds its leg here under its own issue.
+# name this job are #21 for the type checker in strict mode, #23 for the
+# headless proof, #27 for the audit of the installed graph, and #28 for
+# coverage. Each of those adds its leg here under its own issue.
+#
+# This file also carries a second job, which produces its own check run and
+# answers a different question. Its name is an interface in the same way, for
+# the same reason, and the argument for it sits above it.
 name: build
 
 on:
@@ -166,3 +170,79 @@ jobs:
           set -euo pipefail
           uv export --locked --all-extras --no-emit-project --format requirements-txt -o installed-graph.txt
           uvx --no-build "pip-audit@${PIP_AUDIT_VERSION}" --strict --disable-pip --no-deps --requirement installed-graph.txt
+
+  # The floor the manifest declares, installed and run rather than asserted.
+  #
+  # `uv.lock` says what the gate installs and says nothing about the oldest
+  # versions this package claims to support. A declared lower bound nobody tests
+  # is a claim, and the way it is found to be wrong is an operator on an older
+  # distribution meeting a missing keyword argument at run time.
+  #
+  # Its own job rather than a leg of `build`, because it answers a different
+  # question and a reader who sees `build` green should not be able to conclude
+  # anything about the floor from it. It is here rather than in a file of its own
+  # so that the two jobs a change to `pyproject.toml` has to satisfy are read
+  # together.
+  dependency-floor:
+    name: dependency floor
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
+      - name: Resolve every direct dependency down to the floor it declares
+        # The refusal in the middle is the point of this leg rather than a
+        # precaution. A red from the suite below proves the job ran and failed
+        # and says nothing about which graph it ran against, so a job that
+        # silently installed `uv.lock` and a job that installed the floor are
+        # indistinguishable from their result. Comparing the two exports is what
+        # tells them apart, and it fails closed: identical means this job proved
+        # nothing about the floor and says so instead of passing.
+        #
+        # The comparison is derived rather than enumerated. Nothing here names a
+        # dependency, so a package added to `pyproject.toml` later is covered
+        # without anybody editing this file.
+        #
+        # `--no-header` is what makes the comparison mean anything. An export
+        # writes the command that produced it into its first lines, and those two
+        # commands differ, so two exports of one identical graph would differ as
+        # well and the refusal below would never fire.
+        #
+        # `uv.lock` is rewritten in the checkout by the resolution and nothing
+        # pushes it anywhere. The job holds `contents: read` from the workflow
+        # above and the checkout keeps no credentials.
+        run: |
+          set -euo pipefail
+          uv export --locked --extra test --no-emit-project --no-header --format requirements-txt -o locked-graph.txt
+          uv lock --resolution lowest-direct
+          uv export --frozen --extra test --no-emit-project --no-header --format requirements-txt -o floor-graph.txt
+          if diff -q locked-graph.txt floor-graph.txt >/dev/null; then
+            echo "::error::The floor resolution is the locked one, so this job installed the lock file and proved nothing about the floor."
+            exit 1
+          fi
+          echo "What moved between the locked graph and the floor:"
+          diff locked-graph.txt floor-graph.txt || true
+
+      - name: Install the floor
+        # `--frozen` installs the resolution the leg above wrote and refuses to
+        # resolve anything of its own, so what runs below is the graph that was
+        # printed rather than a second resolution nobody saw.
+        run: uv sync --frozen --extra test
+
+      - name: Say what was installed
+        # A green run that does not say what it was green about is a green run
+        # somebody will quote for a floor it never touched.
+        run: uv pip freeze
+
+      - name: Run the default suite against the floor
+        # The same selection the gate runs, for the same reason: the floor is a
+        # claim about the software an operator installs, and the gated set is
+        # what this board says about that software.
+        run: uv run --no-sync pytest
