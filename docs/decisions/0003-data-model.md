@@ -99,3 +99,31 @@ no code and no schema file:
 
 returns nothing. So that half of the condition is unmet rather than satisfied,
 and issue #4 stays open until the schema exists and the two agree.
+
+## Where that condition was met
+
+The section above stands as it was written. What follows is what happened
+afterwards, and it does not replace it.
+
+The schema the code holds is `src/plattenschrank/model.py`, which reached `main`
+in merge commit `2fad41b6af749dd41b3aeeb5b9f2c2ffe4210d5b` from pull request
+#108. There is no separate schema file: the four entities are declared as types
+and the field names are the column names, so the thing a reader opens next to
+this record is that module.
+
+`tests/test_model.py` makes the comparison rather than leaving it to a reader.
+It reads the field names out of the tables above and holds them against the
+types in both directions, so a field named here and missing from a type reds the
+suite naming that field, and a field a type carries that no record names reds it
+too. Two entries in the measurement table name columns without writing them, and
+each expansion is written in that test file next to the reason for it.
+
+A third test refuses the case where the comparison passes because it read
+nothing. A renamed heading or a table rewritten as prose would leave both
+directions comparing against an empty set, which is green and means nothing.
+
+Both directions are proved by deletion, each on its own branch under `scratch/`
+carrying the change and nothing else:
+`origin/scratch/model-reds-when-a-field-the-record-names-is-dropped` and
+`origin/scratch/model-reds-when-a-field-no-record-names-is-added`. What each run
+printed is in issue #4.
