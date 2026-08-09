@@ -396,13 +396,41 @@ problem and it is where almost all of the 5,071,272 sits.
 Rows are spectra and repeat observations of one object are separate rows, which is
 why the distinct-source figure is given beside the spectrum count.
 
-SDSS was tried on the same footprint and has not answered. The spectroscopic class
-in the VizieR copy of data release 16 sits on the photometric catalogue, which is
-what makes a grouped count over it expensive. A synchronous request was cut off
-after nine minutes with nothing returned, and an asynchronous job carrying the
-same query was still reported as `EXECUTING` when this was written. The SDSS side
-is not established here, and the LAMOST count stands on its own rather than
-standing in for both.
+### The SDSS side
+
+SDSS answers the same question over the same footprint, and it answers it for the
+half of the sky LAMOST is thinnest on. The spectroscopic class in the VizieR copy
+of data release 16 sits on the photometric catalogue, which is what makes a
+grouped count over it expensive: a synchronous request returned nothing after nine
+minutes, and the count below came back from an asynchronous job carrying the same
+query.
+
+    curl -sS -X POST https://tapvizier.cds.unistra.fr/TAPVizieR/tap/async \
+      --data-urlencode "REQUEST=doQuery" --data-urlencode "LANG=ADQL" \
+      --data-urlencode "FORMAT=text" --data-urlencode "PHASE=RUN" \
+      --data-urlencode "QUERY=SELECT spCl, COUNT(*) AS n FROM \"V/154/sdss16\"
+        WHERE spCl IS NOT NULL
+          AND DE_ICRS >= -15
+          AND ABS(DEGREES(ASIN(SIN(RADIANS(DE_ICRS))*SIN(RADIANS(27.12825))
+              + COS(RADIANS(DE_ICRS))*COS(RADIANS(27.12825))
+              * COS(RADIANS(RA_ICRS - 192.85948))))) >= 15
+        GROUP BY spCl"
+    GALAXY | 2786607
+    QSO    | 863118
+    STAR   | 929291
+
+4,579,016 spectra, and the shape of it is the point rather than the total. LAMOST
+in this footprint is 96 per cent stars; SDSS here is 61 per cent galaxies and 19
+per cent quasars. The two surveys are not a duplicate of each other over this
+sky, and the extragalactic classifications the FBS was built to find are almost
+all on the SDSS side.
+
+Two limits on this figure that the LAMOST one does not have. No magnitude cut is
+applied to it, so it counts objects the plates do not reach as well as objects
+they do, and it is an upper bound where the LAMOST figure is a figure at the
+limit. And the two counts are not summable: SDSS and LAMOST overlap on this sky
+and no cross-match between them was made here, so this document does not add them
+and neither should a reader.
 
 ## What this board would need and does not have
 
@@ -410,5 +438,5 @@ The ceiling is no longer the problem. What this board needs and does not have is
 the association: a way to say that a particular classified object has a particular
 trace on a particular digitised plate. That needs the DFBS object list, which is
 not published, or a detection run over the scans, which is the work of #61. Until
-one of those exists, five million independent classifications sit next to the
+one of those exists, millions of independent classifications sit next to the
 plates without being attached to anything on them.
