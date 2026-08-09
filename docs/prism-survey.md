@@ -4,9 +4,12 @@ Written before any extraction method is built, because the work that follows is
 scoped by what is actually there.
 
 Every figure below carries the command that produced it. The commands were run
-on 2026-08-08 against the services as they answered then, and a reader who
-re-runs them may get different numbers if an archive has moved. Where a figure
-could not be established, the entry says so and says what was run.
+against the services as they answered on the day they were run, and a reader who
+re-runs them may get different numbers if an archive has moved. Everything up to
+and including the list of published catalogues was run on 2026-08-08. The counts
+under `How many spectra carry an independent classification` were run on
+2026-08-09. Where a figure could not be established, the entry says so and says
+what was run.
 
 Two words are used strictly. Digitised means a scan exists in the archive's own
 records. Extracted means a one-dimensional spectrum has been produced from that
@@ -257,23 +260,155 @@ than against the sky, which is a different claim from the one this board wants t
 make.
 
 Independent classification, meaning a classification of the same object from a
-source other than these plates, was established for exactly one sample:
+source other than these plates, was established for one sample at the level of
+objects this document can name:
 
     curl -sS https://cdsarc.cds.unistra.fr/ftp/J/PAZh/44/383/ReadMe | grep -nE '^[a-z0-9_.]+\.dat'
     46:table2.dat     246         81    Parameters of the main emission lines of
     48:table3.dat     605         83    Cross-correlation with 2MASS, IRAS PSC,
 
 That is 83 Byurakan-IRAS galaxies cross-correlated with external surveys and 81
-with emission-line parameters measured from SDSS spectra. Eighty-three is
-therefore the count this survey can defend, and it is a floor rather than the
-answer. The complete count of prism spectra on these plates carrying an
-independent classification is not established here. What would establish it is a
-positional cross-match of the DFBS object list against a spectroscopic catalogue
-such as SDSS or LAMOST inside the survey footprint, which is a query this survey
-did not run and which needs the object list rather than the plate list.
+with emission-line parameters measured from SDSS spectra. The section below is a
+different kind of number and it is much larger.
+
+## How many spectra carry an independent classification
+
+The count is made from the modern side, because the plate side cannot be queried.
+The DFBS object list is not published anywhere a query reaches. VizieR holds seven
+tables for this survey and none of them is that list:
+
+    curl -sS -G https://tapvizier.cds.unistra.fr/TAPVizieR/tap/sync \
+      --data-urlencode "REQUEST=doQuery" --data-urlencode "LANG=ADQL" \
+      --data-urlencode "FORMAT=text" \
+      --data-urlencode "QUERY=SELECT table_name FROM TAP_SCHEMA.tables WHERE description LIKE '%Byurakan%'"
+    "II/223/fbs2"  "III/237A/catalog"  "III/246/catalog"  "III/266/catalog"
+    "J/MNRAS/489/2030/catv2"  "J/PAZh/44/383/bigs"  "VI/116/dfbs"
+
+Six of those are catalogues of objects somebody selected off these plates, and the
+seventh is the plate database. The 20,000,000 objects the overview page claims are
+not among them, so a match keyed on a DFBS object identifier cannot be made from
+here at all.
+
+The question is therefore turned around. Rather than asking which DFBS objects
+carry a modern classification, ask how many modern classifications fall inside the
+area the digitised plates cover, at a brightness those plates reach.
+
+### The footprint the count is made over
+
+The survey definition is in the plate database's own documentation:
+
+    curl -sS https://cdsarc.cds.unistra.fr/ftp/VI/116/ReadMe
+
+It gives 4 by 4 degree fields, 17,056 square degrees covered, declination above
+-15 and galactic latitude above 15 degrees in absolute value. The count uses
+exactly that boundary, with galactic latitude computed from the J2000 pole this
+document already uses for the APPLAUSE plates, right ascension 192.85948 degrees
+and declination 27.12825 degrees. That conversion returns 90.0 at the north
+galactic pole, -90.0 at the south, -0.0 at the galactic centre and -21.573 for
+M31, whose accepted latitude is -21.57.
+
+The published plate database sits inside that definition rather than filling it
+exactly. Its 1729 rows have plate centres from declination -20.81 to +88.76:
+
+    QUERY=SELECT MIN(DEJ2000) AS dmin, MAX(DEJ2000) AS dmax FROM "VI/116/dfbs"
+    -20.814166666666665 | 88.76416666666665
+
+and all but nine of them carry an objective prism:
+
+    QUERY=SELECT Prism, COUNT(*) AS n FROM "VI/116/dfbs" GROUP BY Prism
+    1.5 | 1720
+    3.0 | 4
+    4.0 | 1
+        | 4
+
+1720 plates of 16 square degrees each is 27,520 square degrees of plate area
+against 17,056 square degrees of survey area, so the digitised plates overlap
+rather than sampling the footprint sparsely. Read that as an area argument and not
+as a coverage map. It does not establish that every point in the footprint lies
+under a digitised plate, and no gap map was produced here.
+
+### The count
+
+LAMOST is a modern fibre survey with no relation to these plates, and its data
+release 11 low-resolution general catalogue carries a spectral class per spectrum.
+The whole catalogue is 11,931,197 rows. Restricted to the footprint above:
+
+    curl -sS -G https://tapvizier.cds.unistra.fr/TAPVizieR/tap/sync \
+      --data-urlencode "REQUEST=doQuery" --data-urlencode "LANG=ADQL" \
+      --data-urlencode "FORMAT=text" \
+      --data-urlencode "QUERY=SELECT Class, COUNT(*) AS n FROM \"V/162/dr11l\"
+        WHERE DEJ2000 >= -15
+          AND ABS(DEGREES(ASIN(SIN(RADIANS(DEJ2000))*SIN(RADIANS(27.12825))
+              + COS(RADIANS(DEJ2000))*COS(RADIANS(27.12825))
+              * COS(RADIANS(RAJ2000 - 192.85948))))) >= 15
+        GROUP BY Class"
+    GALAXY | 275331
+    QSO    | 81665
+    STAR   | 8282026
+
+8,639,022 classified spectra inside the footprint. The plates reach 17.5 to 18.0
+in V, so the same query with `AND "V/162/dr11l"."Gmag" <= 17.5` appended to the
+WHERE clause:
+
+    GALAXY | 2242
+    QSO    | 4396
+    STAR   | 7646682
+
+7,653,320 spectra, which come from
+
+    QUERY=SELECT COUNT(DISTINCT "V/162/dr11l"."GaiaDR3") AS n_obj FROM "V/162/dr11l"
+          WHERE <the same footprint clause> AND "V/162/dr11l"."Gmag" <= 17.5
+    5071272
+
+distinct sources. That is the count this document can defend for the question at
+the head of this section, against the 83 named objects above.
+
+### What that number is not
+
+Each limit below moves the number in a direction that is stated rather than
+assumed.
+
+It is a position count and not an association. Every row above is a modern
+spectrum whose sky position falls in the footprint. Whether a trace for that
+object exists on a digitised plate, and which plate, is not established by this
+query and cannot be until the object list exists or a detection run is made on the
+scans.
+
+Gaia G is not photographic V. The magnitude cut is applied in Gaia G because that
+is the column the catalogue carries for most rows, and the plate limit is quoted
+in V. The two agree to within a few tenths for ordinary stars and disagree by more
+for red and for extended objects.
+
+The magnitude cut also drops every row that has no Gaia magnitude at all, and
+198,634 rows in the footprint have none:
+
+    QUERY=SELECT COUNT(*) AS n FROM "V/162/dr11l"
+          WHERE <the same footprint clause> AND "V/162/dr11l"."Gmag" IS NULL
+
+That is part of why the galaxy figure falls from 275,331 to 2,242 and it is not
+the whole of it: 273,089 galaxy rows are dropped and at most 198,634 rows of all
+classes together can be dropped for a missing magnitude, so the rest are galaxies
+the cut reads as fainter than 17.5. Gaia G is a point-source magnitude and an
+extended object is measured badly by it either way, so 2,242 is a floor on the
+galaxies rather than a count of them. The stellar figure does not have this
+problem and it is where almost all of the 5,071,272 sits.
+
+Rows are spectra and repeat observations of one object are separate rows, which is
+why the distinct-source figure is given beside the spectrum count.
+
+SDSS was tried on the same footprint and has not answered. The spectroscopic class
+in the VizieR copy of data release 16 sits on the photometric catalogue, which is
+what makes a grouped count over it expensive. A synchronous request was cut off
+after nine minutes with nothing returned, and an asynchronous job carrying the
+same query was still reported as `EXECUTING` when this was written. The SDSS side
+is not established here, and the LAMOST count stands on its own rather than
+standing in for both.
 
 ## What this board would need and does not have
 
-To evaluate an extraction rather than merely produce one, this board needs a set
-of prism spectra with classifications made from something other than these
-plates, at a size larger than the 83 established here, and it does not have one.
+The ceiling is no longer the problem. What this board needs and does not have is
+the association: a way to say that a particular classified object has a particular
+trace on a particular digitised plate. That needs the DFBS object list, which is
+not published, or a detection run over the scans, which is the work of #61. Until
+one of those exists, five million independent classifications sit next to the
+plates without being attached to anything on them.
