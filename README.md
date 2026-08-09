@@ -6,4 +6,9 @@ Planning happens on the issue tracker first. Every decision that shapes
 the architecture is written down there with its reasons before the code
 that depends on it exists.
 
+Before running this on plates whose envelopes and logbooks carry people's names,
+read [docs/data-protection.md](docs/data-protection.md). It says what stays on
+your host, what this software will not decide for you, and which of those
+statements a check holds up and which nothing does.
+
 See [NOTICE.md](NOTICE.md) for the intended-use notice.
