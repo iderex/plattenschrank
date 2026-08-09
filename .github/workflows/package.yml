@@ -1,0 +1,252 @@
+# The two checks that read the thing an operator installs, rather than the tree.
+#
+# Everything in `build.yml` judges the source. Neither of the jobs here does.
+# One builds the distributions and installs the wheel into an environment that
+# holds nothing else, so what is judged is the artefact and not the checkout it
+# came out of. The other reads that same environment and writes down what is
+# inside it.
+#
+# Both run on every pull request rather than only at a release. A packaging
+# break found at release time is found by the person who least wants to find it
+# there, and a bill of materials first generated on release day is a step nobody
+# has rehearsed.
+#
+# The two are separate jobs and neither depends on the other, so each produces
+# its own check run and a red is attributable to one of them. Making the second
+# wait on the first would cost more than the duplicated build saves: a check run
+# that is skipped because an earlier job failed is not a check run that passed,
+# and a ruleset cannot tell the two apart.
+#
+# `docs/gate-parity.md` is where these two sit in the target gate. They answer
+# `Package (JPRM) / Build package` and `Package (JPRM) / Generate SBOM`, the
+# first as a deviation because this board ships an artefact an operator installs
+# directly rather than a plugin a host installs, and the second because the
+# property is the same on both boards and only the tool that emits it differs.
+name: package
+
+on:
+  # Both triggers, matching `build.yml`. The pull-request trigger is what a
+  # ruleset reads. The push trigger is what lets a deliberate failure be shown
+  # on a branch under `scratch/` without opening a pull request for it.
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+# Read-only. Neither job writes to the repository. Uploading a run artefact
+# needs nothing beyond this, and a job that cannot write cannot be turned into
+# one that publishes by an edit nobody reads closely.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    # The check-run name a ruleset would require. Keep it and the job id the
+    # same so the two cannot drift apart, which is the reason written at the top
+    # of `build.yml` and applies here word for word.
+    name: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
+      - name: Build the source distribution and the wheel
+        # Both, in one command, because a project that builds one and not the
+        # other is broken in a way that only shows up wherever the missing one
+        # was the thing being installed.
+        #
+        # The counts are refused rather than the presence, and the difference
+        # matters. `dist/` is empty in a fresh checkout, so a glob that matched
+        # something would be a glob that matched what this step produced. Two
+        # wheels is the case worth refusing anyway: it is what a stale artefact
+        # left in the tree looks like, and it makes every step below act on
+        # whichever one the shell happened to sort first.
+        run: |
+          set -euo pipefail
+          uv build --out-dir dist
+          sdists=(dist/*.tar.gz)
+          wheels=(dist/*.whl)
+          if [ ! -e "${sdists[0]}" ] || [ "${#sdists[@]}" -ne 1 ]; then
+            echo "::error::The build did not produce exactly one source distribution."
+            ls -l dist || true
+            exit 1
+          fi
+          if [ ! -e "${wheels[0]}" ] || [ "${#wheels[@]}" -ne 1 ]; then
+            echo "::error::The build did not produce exactly one wheel."
+            ls -l dist || true
+            exit 1
+          fi
+          sha256sum dist/* | tee dist-checksums.txt
+
+      - name: Install the wheel into an environment that holds nothing else
+        # A fresh interpreter outside the project, so nothing on the path is
+        # this repository. Installing into the environment `uv sync` builds
+        # would prove that a package already importable from `src/` is still
+        # importable, which is not a statement about the wheel.
+        #
+        # The graph the wheel is installed against is the one `uv.lock` records,
+        # exported to a constraint file. Without it this leg resolves whatever
+        # the index offers on the day it runs, so a red would be a fact about
+        # the index as often as about the change. `--no-hashes` is what makes
+        # the file usable as a constraint beside a local wheel that has none.
+        run: |
+          set -euo pipefail
+          uv export --locked --no-dev --no-emit-project --no-hashes --format requirements-txt -o shipped-graph.txt
+          echo "The graph the wheel is installed against:"
+          cat shipped-graph.txt
+          uv venv --python 3.12 "$RUNNER_TEMP/wheel-env"
+          VIRTUAL_ENV="$RUNNER_TEMP/wheel-env" uv pip install --constraint shipped-graph.txt dist/*.whl
+          VIRTUAL_ENV="$RUNNER_TEMP/wheel-env" uv pip freeze
+
+      - name: Run the entry point out of the installed wheel
+        # The command and an import, because they fail in different ways. A
+        # console script that was never written to the environment fails at the
+        # shell, and a package whose modules did not make it into the wheel
+        # fails at the import. A wheel that carried the metadata and none of the
+        # code passes the first and not the second.
+        #
+        # `--version` reads installed distribution metadata rather than a string
+        # in the source, so what it prints is a fact about the artefact. It is
+        # held against the version the manifest declares rather than printed and
+        # trusted: a wheel built from a stale tree runs perfectly and answers
+        # for a version nobody asked for.
+        run: |
+          set -euo pipefail
+          declared="$(python3 -c 'import tomllib;print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')"
+          reported="$("$RUNNER_TEMP/wheel-env/bin/plattenschrank" --version)"
+          echo "declared=$declared reported=$reported"
+          if [ "$declared" != "$reported" ]; then
+            echo "::error::The installed wheel reports $reported and pyproject.toml declares $declared."
+            exit 1
+          fi
+          "$RUNNER_TEMP/wheel-env/bin/python" -c "import plattenschrank; print(plattenschrank.__file__)"
+
+      - name: Say what was built
+        run: |
+          set -euo pipefail
+          {
+            echo "### What this run built"
+            echo
+            echo '```'
+            cat dist-checksums.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  bill-of-materials:
+    name: bill of materials
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
+      - name: Build the wheel and install it with nothing else beside it
+        # The same environment the job above builds, built again here rather
+        # than carried across. The two jobs stay independent, and what this one
+        # reads is an installed artefact rather than a file another job handed
+        # it.
+        run: |
+          set -euo pipefail
+          uv build --wheel --out-dir dist
+          uv export --locked --no-dev --no-emit-project --no-hashes --format requirements-txt -o shipped-graph.txt
+          uv venv --python 3.12 "$RUNNER_TEMP/wheel-env"
+          VIRTUAL_ENV="$RUNNER_TEMP/wheel-env" uv pip install --constraint shipped-graph.txt dist/*.whl
+
+      - name: Generate the bill of materials from what is installed
+        # From the environment and not from `pyproject.toml`. The manifest says
+        # what was asked for and carries ranges; the environment says what a
+        # version of each of them shipped, which is the only one of the two an
+        # advisory can be matched against.
+        #
+        # The generator is pinned. It decides what the document says, so a range
+        # here would mean a different document on two days with no change to
+        # this tree, which is the argument `pyproject.toml` makes for the type
+        # checker and the linter.
+        #
+        # The document goes to standard output and is redirected here rather
+        # than named with the generator's own flag, because the flag's spelling
+        # is a fact about the generator's version and this way there is one
+        # fewer of those.
+        env:
+          CYCLONEDX_VERSION: "7.1.0"
+        run: |
+          set -euo pipefail
+          uvx --no-build --from "cyclonedx-bom==${CYCLONEDX_VERSION}" \
+            cyclonedx-py environment "$RUNNER_TEMP/wheel-env/bin/python" \
+            --output-format JSON > bom.json
+
+      - name: Refuse a document that describes nothing
+        # The refusal this check is worth having. A generator pointed at an
+        # empty environment writes a valid document with no components in it,
+        # and a valid document is what every other reading of this job asks
+        # for, so the failure looks exactly like a pass. The project's own
+        # component is required by name as well, because a document listing the
+        # dependencies and not the thing they are inside is a document about
+        # somebody else's artefact.
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import sys
+
+          with open("bom.json", encoding="utf-8") as document:
+              bom = json.load(document)
+
+          if bom.get("bomFormat") != "CycloneDX" or not bom.get("specVersion"):
+              sys.exit("::error::bom.json does not declare itself as CycloneDX.")
+
+          components = bom.get("components") or []
+          names = sorted(component["name"] for component in components)
+          if not names:
+              sys.exit(
+                  "::error::The bill of materials lists no components, so it "
+                  "describes an environment nothing was installed into."
+              )
+          if "plattenschrank" not in names:
+              sys.exit(
+                  "::error::The bill of materials does not list plattenschrank, "
+                  f"so it is not about this artefact. It lists: {', '.join(names)}"
+              )
+          print(f"CycloneDX {bom['specVersion']}, {len(names)} components")
+          print("\n".join(names))
+
+          with open("bom-components.txt", "w", encoding="utf-8") as listing:
+              listing.write("\n".join(names) + "\n")
+          PY
+
+      - name: Say what shipped
+        # In the summary rather than only in the log, because the contents are
+        # what a reader compares against the next run when a dependency moves.
+        run: |
+          set -euo pipefail
+          {
+            echo "### What the bill of materials lists"
+            echo
+            echo '```'
+            cat bom-components.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Attach the bill of materials to the run
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bill-of-materials
+          path: bom.json
+          if-no-files-found: error
