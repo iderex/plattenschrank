@@ -1,0 +1,218 @@
+# The deterministic checks about the pull request itself rather than about the
+# code in it. `docs/gate-parity.md` carries the target's
+# `Deterministic PR-hygiene checks` context, and the job below answers it under
+# the same name. That name is an interface rather than a label: a ruleset
+# matches a check run by its name and nothing else, so renaming this job removes
+# it from every ruleset that required the old name, silently.
+#
+# Four properties, and every one of them is decided by a machine from the
+# pull request's own metadata. There is no tier of advice here and nothing that
+# reports a judgement: a property either holds or it does not, and the failure
+# message names the property rather than sending a contributor to a document.
+#
+# The four are the ones `docs/gate-parity.md` names for this row. Every rule the
+# contributing document states that is NOT among them stays exactly as unenforced
+# as it was: nothing here reads a commit message, compares a change against a
+# `Scope:` line, connects a pull request to the issue it claims, or judges
+# whether a body says anything true. This job narrows that set by four and the
+# rest of it is untouched.
+#
+# The trigger includes `edited` so that fixing a body re-runs the check rather
+# than leaving a stale red on a pull request that has since been repaired.
+name: PR hygiene
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+# Explicit deny-all at workflow level; the job below grants only what it reads.
+permissions: {}
+
+# Cancel a superseded run on the same pull request. Every property here is read
+# from metadata at the moment the run starts, so an obsolete run has no result
+# worth waiting for.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hygiene:
+    name: Deterministic PR-hygiene checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read # read the commit list behind the pull request
+      pull-requests: read # read the body, the head ref and the commit set
+
+    steps:
+      # No checkout. Every input is metadata read through the API, so there is
+      # no working tree here for anything to reach into. The untrusted values -
+      # the body above all - are only ever read as JavaScript values from the
+      # `context` and API objects and never interpolated into a shell command,
+      # so this job has no template-injection surface by construction.
+      - name: Decide the four properties
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            // The four properties, written as pure functions of their inputs so
+            // that the block below can run each one against a case that must
+            // trip it and a near miss that must not. A property nobody proved
+            // bites is a comment, and a check made of comments reports green on
+            // a pull request it never actually judged.
+            const bodyIsEmpty = (body) => (body || "").trim().length === 0;
+
+            // A bare `#123`, a keyword form, or a full issue URL all satisfy
+            // this. The leading boundary is what stops a colour literal such as
+            // `#1f2937` inside a fenced block from counting, and the trailing
+            // `\b` is what stops `#12abc` counting.
+            const namesAnIssue = (body) =>
+              /(^|[^\w])#\d+\b/.test(body || "") ||
+              /github\.com\/[^\/\s]+\/[^\/\s]+\/issues\/\d+/i.test(body || "");
+
+            // Exact, not a prefix. `feat/main-menu` and `mainline` are ordinary
+            // branch names and a prefix comparison would refuse both.
+            const headIsTheDefaultBranch = (headRef, defaultBranch) =>
+              headRef === defaultBranch;
+
+            // Decided by the parent count and never by the subject line. A
+            // commit whose message merely opens with the word `Merge` is an
+            // ordinary commit, and a merge commit written with any other
+            // subject is still a merge commit.
+            const mergeCommits = (commits) =>
+              commits.filter((c) => ((c.parents || []).length > 1));
+
+            // --- The proof that each property bites -----------------------
+            const proofFailures = [];
+            const prove = (label, actual, required) => {
+              const ok = JSON.stringify(actual) === JSON.stringify(required);
+              core.info(
+                `  ${ok ? "ok      " : "WRONG   "} ${label}: ` +
+                  `${JSON.stringify(actual)}, required ${JSON.stringify(required)}`,
+              );
+              if (!ok) proofFailures.push(label);
+            };
+
+            core.info("a pull request body is not empty");
+            prove("no body at all", bodyIsEmpty(null), true);
+            prove("a body of whitespace", bodyIsEmpty("  \n\t\n "), true);
+            prove("a body with one word", bodyIsEmpty("Refs #33"), false);
+
+            core.info("a pull request body names an issue");
+            prove("a body naming none", namesAnIssue("Adds the analysis job."), false);
+            prove("a heading and a fence only", namesAnIssue("## What\n\n```\n#!/bin/sh\n```"), false);
+            prove("a colour literal", namesAnIssue("background is #1f2937 now"), false);
+            prove("a bare reference", namesAnIssue("Refs #33"), true);
+            prove("a reference at the start", namesAnIssue("#33 is what this is"), true);
+            prove(
+              "a full issue link",
+              namesAnIssue("see https://github.com/iderex/plattenschrank/issues/33"),
+              true,
+            );
+
+            core.info("the head branch is not the default branch");
+            prove("the default branch itself", headIsTheDefaultBranch("main", "main"), true);
+            prove("a branch whose name starts with it", headIsTheDefaultBranch("mainline", "main"), false);
+            prove("a branch with it inside a segment", headIsTheDefaultBranch("feat/main-menu", "main"), false);
+
+            core.info("the commit set carries no merge commit");
+            const oneParent = (sha, message) => ({ sha, parents: [{ sha: "0" }], commit: { message } });
+            const twoParents = (sha, message) => ({
+              sha,
+              parents: [{ sha: "0" }, { sha: "1" }],
+              commit: { message },
+            });
+            prove(
+              "a merge of the default branch into this one",
+              mergeCommits([oneParent("aaa", "Add the job"), twoParents("bbb", "Merge branch 'main'")]).length,
+              1,
+            );
+            prove(
+              "a merge commit whose subject says nothing about merging",
+              mergeCommits([twoParents("ccc", "Bring the two halves together")]).length,
+              1,
+            );
+            prove(
+              "an ordinary commit whose subject opens with the word",
+              mergeCommits([oneParent("ddd", "Merge the two readers into one function")]).length,
+              0,
+            );
+
+            if (proofFailures.length) {
+              core.setFailed(
+                "These properties did not behave as required against their own cases, so " +
+                  "this run judged nothing: " +
+                  proofFailures.join("; "),
+              );
+              return;
+            }
+            core.info("every case above behaved as required, so the four properties below are the ones just proved.");
+
+            // --- The four properties, against this pull request -----------
+            const pr = context.payload.pull_request;
+            const defaultBranch = context.payload.repository.default_branch;
+            const commits = await github.paginate(github.rest.pulls.listCommits, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              per_page: 100,
+            });
+
+            // What was examined, printed rather than implied. A check that read
+            // a smaller set than a reader assumes is the failure this line is
+            // against, and a silent green cannot be told from one.
+            const body = pr.body || "";
+            core.info(
+              `examined: a body of ${body.trim().length} character(s), head ref ` +
+                `"${pr.head.ref}" against default branch "${defaultBranch}", and ` +
+                `${commits.length} commit(s).`,
+            );
+
+            const failures = [];
+
+            if (bodyIsEmpty(pr.body)) {
+              failures.push(
+                "The pull request body is empty. Everything about a change goes in " +
+                  "its body: what changed, what failure it prevents, and the commands " +
+                  "behind any number it asserts.",
+              );
+            }
+
+            if (!namesAnIssue(pr.body)) {
+              failures.push(
+                "The pull request body names no issue. Write the issue this change " +
+                  "belongs to as `#N` or as a full issue link, because every change " +
+                  "here starts as an issue.",
+              );
+            }
+
+            if (headIsTheDefaultBranch(pr.head.ref, defaultBranch)) {
+              failures.push(
+                `The head branch is "${pr.head.ref}", which is the default branch. ` +
+                  "A change lands from a branch of its own, so that the default branch " +
+                  "keeps the history the ruleset protects.",
+              );
+            }
+
+            const merges = mergeCommits(commits);
+            if (merges.length) {
+              const listed = merges
+                .map((c) => `${c.sha.slice(0, 7)} ("${(c.commit.message || "").split("\n")[0]}")`)
+                .join(", ");
+              failures.push(
+                `The commit set carries ${merges.length} merge commit(s): ${listed}. ` +
+                  "Rebase onto the default branch instead of merging it in, so the " +
+                  "commits under review are the ones this change adds.",
+              );
+            }
+
+            const summary = core.summary.addHeading("Deterministic PR-hygiene checks", 2);
+            if (failures.length === 0) {
+              summary.addRaw("All four properties hold.");
+            } else {
+              summary.addHeading("Properties that do not hold", 3).addList(failures);
+            }
+            await summary.write();
+
+            if (failures.length) {
+              core.setFailed(failures.join(" | "));
+            }

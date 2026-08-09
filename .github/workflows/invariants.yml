@@ -1,0 +1,266 @@
+# The greppable invariants this board can state today, and the proof that each
+# one bites.
+#
+# `docs/gate-parity.md` carries the target's `Enforce greppable invariants`
+# context, and the job below answers it under the same name. The job name is an
+# interface rather than a label: a ruleset matches a check run by its name and
+# nothing else, so renaming it removes it from every ruleset that required the
+# old name, silently, leaving the gate unrequired and still green.
+#
+# The means is `git grep -P` over the tracked tree, which is what
+# `unicode-guard.yml` already uses for the same shape of question. The target
+# board reaches for a scanner binary downloaded and checksum-verified at run
+# time; that buys a rule language this board has no use for yet, and it pays for
+# it with a network fetch inside a gate whose whole subject is that nothing
+# reaches the network by default. Three token patterns are what is wanted here,
+# and git already holds the matcher and the file list.
+#
+# WHAT THESE PATTERNS DO NOT REACH is written at each one and stays negative.
+# A pattern that is silent is a pattern that found nothing, and that is not the
+# same statement as the property holding.
+name: Repo invariants
+
+on:
+  # Both triggers, matching `build.yml`. The pull-request trigger is what a
+  # ruleset reads. The push trigger is what lets a deliberate violation be
+  # demonstrated on a scratch branch without opening a pull request for it.
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+# Explicit deny-all at workflow level; the job below grants only what it needs.
+permissions: {}
+
+# Cancel a superseded run on the same ref. Every step here is a pure read of the
+# tree at a commit, so an obsolete run has no result worth waiting for.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  invariants:
+    name: Enforce greppable invariants
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read # check out the tree to scan; nothing here writes
+
+    # The three patterns, defined once and read by both steps below. A second
+    # copy inside either step would drift against the other, and the drift would
+    # be invisible until somebody compared them by hand: the proof step would go
+    # on proving a pattern the enforcement step no longer runs.
+    #
+    # A single quote is written `\x27` throughout rather than as itself, so that
+    # a pattern can name both quote characters without fighting the shell or
+    # this file's own YAML quoting.
+    env:
+      # No tracked file carries an absolute path from a developer's machine.
+      #
+      # It reaches a home directory under either of the two layouts this board
+      # is developed on, and it is about a home directory rather than about
+      # absolute paths: `/usr/lib/...` is a path an operator's machine also has,
+      # and refusing it would refuse the tree's own correct references.
+      #
+      # NOT REACHED: a home directory under a site-specific root such as
+      # `/homes/<user>` or `/export/home/<user>`, a path built at run time from
+      # a variable, and a user profile referred to by `%USERPROFILE%` or `~`.
+      INVARIANT_DEVELOPER_PATH: '((/home|/Users)/[A-Za-z0-9._-]+/|[A-Za-z]:[\\/]Users[\\/])'
+
+      # No tracked file carries a credential-shaped literal.
+      #
+      # Four shapes: a private key header, a cloud access key identifier, a
+      # personal access token of the shape this forge issues, and a credential
+      # name assigned a quoted literal. The last one skips a value that opens
+      # with `$` or `{`, because that is a reference to a secret held somewhere
+      # else rather than the secret, and refusing it would refuse the correct
+      # way to write the line.
+      #
+      # NOT REACHED: a credential that looks like ordinary text, a value long
+      # enough to be a secret assigned to a name outside the list, a literal
+      # split across concatenated pieces, and anything base64-encoded. This is
+      # a floor on what has leaked in public trees, not a detector.
+      INVARIANT_CREDENTIAL: '(-----BEGIN [A-Z ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{36}|(?i)(password|passwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token)[ \t]*[:=][ \t]*["\x27][^"\x27$\{][^"\x27]{7,}["\x27])'
+
+      # No test names a network host it could reach.
+      #
+      # Two shapes: a string literal opening with a URL, and a quoted host
+      # followed by a port. Either is refused unless the host is loopback or one
+      # of the names and addresses the standards reserve for documentation, so
+      # a test may still write down what a request would look like without
+      # naming somewhere it could actually arrive.
+      #
+      # The host-and-port shape requires the last label to be a two-letter
+      # country code or one of the named generic domains, which is what keeps a
+      # quoted filename such as a model weight file from reading as a host.
+      #
+      # NOT REACHED: a URL that is not the first thing inside its quotes, which
+      # includes one written in a comment or in the middle of a docstring; a
+      # host under a generic domain outside the list, in the host-and-port
+      # shape; and a host assembled at run time. The URL shape reaches every
+      # host regardless of its domain.
+      INVARIANT_TEST_NETWORK_HOST: '(["\x27]https?://(?!(localhost|127\.0\.0\.1|\[?::1\]?|([A-Za-z0-9-]+\.)*example\.(com|net|org)|[A-Za-z0-9-]+\.(example|invalid|test|localhost)|192\.0\.2\.[0-9]{1,3}|198\.51\.100\.[0-9]{1,3}|203\.0\.113\.[0-9]{1,3}|\[?2001:0?db8:[0-9a-fA-F:]*\]?)([:/?#]|["\x27]))|["\x27](?!(localhost|127\.0\.0\.1|\[?::1\]?|([A-Za-z0-9-]+\.)*example\.(com|net|org)|[A-Za-z0-9-]+\.(example|invalid|test|localhost)|192\.0\.2\.[0-9]{1,3}|198\.51\.100\.[0-9]{1,3}|203\.0\.113\.[0-9]{1,3}|\[?2001:0?db8:[0-9a-fA-F:]*\]?)["\x27])(([A-Za-z0-9-]+\.)+([A-Za-z]{2}|com|org|net|edu|gov|int|mil|arpa|info|dev|app|cloud|science|systems)|([0-9]{1,3}\.){3}[0-9]{1,3})["\x27][ \t]*,[ \t]*[0-9]+)'
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # No step pushes via git, so do not persist the GITHUB_TOKEN in
+          # .git/config where a later step could read it.
+          persist-credentials: false
+
+      - name: Prove each invariant bites, and stays silent on its near miss
+        # An invariant nobody proved bites is a comment. This step builds a
+        # throwaway repository, writes one file per case into it, and runs the
+        # SAME `git grep` invocation the enforcement step below runs. Same
+        # matcher, same flags, same pattern, so a pattern that has stopped
+        # matching is caught here rather than by a violation nobody noticed
+        # sailing through.
+        #
+        # Each invariant carries a case that must trip and a near miss that must
+        # stay silent, and the near miss is the half worth the effort: a pattern
+        # that refuses everything passes a trip test and is useless. The near
+        # misses here are the legitimate lines closest to each violation - an
+        # absolute path that is not a home directory, a credential read from the
+        # environment instead of written down, and a host reserved for
+        # documentation.
+        #
+        # Every fixture is assembled from pieces at run time rather than written
+        # out whole. A file that carried the literals would trip its own
+        # patterns in the step below, and the repair for that is either a hole
+        # in the scan or a file that cannot say what it checks.
+        run: |
+          set -euo pipefail
+
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          mkdir -p "$work/case" "$work/tests"
+          cd "$work"
+          git -c init.defaultBranch=main init -q .
+
+          # The invariant about a developer's machine. `home_word` and
+          # `users_word` keep the two directory names out of this file in the
+          # shape the pattern matches.
+          home_word=home
+          users_word=Users
+          printf 'CACHE = "/%s/nils/plates/scan.fits"\n' "$home_word" > case/developer-path-posix.txt
+          printf 'CACHE = "C:\\%s\\nils\\plates"\n' "$users_word" > case/developer-path-windows.txt
+          # Absolute, and none of them a home directory: a system path an
+          # operator's machine has too, a drive that is not a user profile, and
+          # the mount point itself with nobody's name after it.
+          printf 'LIB = "/usr/lib/python3.12/socket.py"\nDATA = "D:\\archive\\plates"\nMOUNT = "/%s"\n' "$home_word" > case/system-path.txt
+
+          # The credential invariant. The key header and the access key
+          # identifier are each glued from two halves for the same reason.
+          key_header='-----BEGIN RSA PRIVATE '
+          key_header="${key_header}KEY-----"
+          cloud_prefix=AKIA
+          name_word=password
+          printf '%s\nMIIEpAIBAAKCAQEA\n' "$key_header" > case/credential-private-key.txt
+          printf 'KEY = "%sEXAMPLEEXAMPLE00"\n' "$cloud_prefix" > case/credential-cloud-key.txt
+          printf '%s = "hunter2-and-not-a-real-one"\n' "$name_word" > case/credential-assignment.txt
+          # Both legitimate, and both one character from the shape above: a
+          # credential named and read from the environment rather than written
+          # down, and a name assigned nothing at all.
+          printf 'api_key = os.environ["ARCHIVE_API_KEY"]\n%s = ""\n' "$name_word" > case/credential-from-environment.txt
+
+          # The network-host invariant, under `tests/` because that is where the
+          # enforcement step looks for it.
+          printf 'RESPONSE = requests.get("https://hsl.harvard.edu/api")\n' > tests/trip_url.py
+          printf 'ENDPOINT = ("dc.g-vo.org", 443)\n' > tests/trip_host_and_port.py
+          # A documentation name, a documentation address, loopback, a quoted
+          # file name that a looser pattern would read as a host, and a link in
+          # a comment.
+          printf 'DOC = ("example.org", 443)\nRESERVED = ("192.0.2.1", 443)\nLOOPBACK = "http://localhost:8080/plates"\nWEIGHTS = TrackedFile("detector.safetensors", 10)\n# see https://github.com/iderex/plattenschrank/issues/33\n' > tests/near_reserved.py
+
+          git add -A
+
+          failures=0
+          check() {
+            want="$1"; label="$2"; pattern="$3"; path="$4"
+            rc=0
+            out="$(git grep -nIP "$pattern" -- "$path")" || rc=$?
+            case "$rc" in
+              0) got=trips ;;
+              1) got=silent ;;
+              # Fail closed. A matcher that could not run has not found the
+              # fixture clean, and the two must not look the same.
+              *) echo "::error::the matcher exited $rc on $label, so this proves nothing"; failures=$((failures+1)); return ;;
+            esac
+            if [ "$got" = "$want" ]; then
+              echo "  ok       $label: $got, as required"
+            else
+              echo "::error::$label was required to be $want and was $got"
+              printf '%s\n' "$out"
+              failures=$((failures+1))
+            fi
+          }
+
+          echo "no tracked file carries an absolute path from a developer's machine"
+          check trips  "a home directory under /$home_word"        "$INVARIANT_DEVELOPER_PATH" case/developer-path-posix.txt
+          check trips  "a user profile under \\$users_word"        "$INVARIANT_DEVELOPER_PATH" case/developer-path-windows.txt
+          check silent "absolute paths that are nobody's home"     "$INVARIANT_DEVELOPER_PATH" case/system-path.txt
+
+          echo "no tracked file carries a credential-shaped literal"
+          check trips  "a private key header"                      "$INVARIANT_CREDENTIAL" case/credential-private-key.txt
+          check trips  "a cloud access key identifier"             "$INVARIANT_CREDENTIAL" case/credential-cloud-key.txt
+          check trips  "a credential name assigned a literal"      "$INVARIANT_CREDENTIAL" case/credential-assignment.txt
+          check silent "a credential read from the environment"    "$INVARIANT_CREDENTIAL" case/credential-from-environment.txt
+
+          echo "no test names a network host it could reach"
+          check trips  "a request to an archive over the network"  "$INVARIANT_TEST_NETWORK_HOST" tests/trip_url.py
+          check trips  "an archive host and port"                  "$INVARIANT_TEST_NETWORK_HOST" tests/trip_host_and_port.py
+          check silent "reserved, loopback, a file name, a link"   "$INVARIANT_TEST_NETWORK_HOST" tests/near_reserved.py
+
+          if [ "$failures" -ne 0 ]; then
+            echo "::error::$failures of the cases above did not behave as the invariant requires, so the enforcement step below would be reporting on patterns nobody proved."
+            exit 1
+          fi
+          echo "all ten cases behaved as required, so the three patterns below are the ones just proved."
+
+      - name: Enforce the invariants over the tracked tree
+        # What was examined is printed rather than implied. A scan that read a
+        # smaller set than a reader assumes is the failure this line is against,
+        # and a silent green cannot be told from one.
+        run: |
+          set -euo pipefail
+
+          echo "examined $(git ls-files -- . | wc -l) tracked file(s), of which $(git ls-files -- tests/ | wc -l) under tests/"
+
+          failures=0
+          enforce() {
+            property="$1"; remedy="$2"; pattern="$3"; shift 3
+            rc=0
+            out="$(git grep -nIP "$pattern" -- "$@")" || rc=$?
+            case "$rc" in
+              0)
+                # The message names the property that was violated and what to
+                # do about it. A contributor meeting a red check should not
+                # have to open a document to find out which rule they met.
+                echo "::error::$property $remedy"
+                printf '%s\n' "$out"
+                failures=$((failures+1))
+                ;;
+              1)
+                echo "  ok       $property (searched $*)"
+                ;;
+              # Fail closed rather than mistaking a broken matcher for a clean
+              # tree, which is the same choice `unicode-guard.yml` makes.
+              *)
+                echo "::error::the matcher exited $rc while checking that $property. Failing closed rather than reading that as a clean tree."
+                failures=$((failures+1))
+                ;;
+            esac
+          }
+
+          enforce "no tracked file carries an absolute path from a developer's machine." \
+            "Read the path from configuration or build it at run time." \
+            "$INVARIANT_DEVELOPER_PATH" .
+          enforce "no tracked file carries a credential-shaped literal." \
+            "Move the value out of the tree and refer to it from the environment." \
+            "$INVARIANT_CREDENTIAL" .
+          enforce "no test names a network host it could reach." \
+            "A test that needs an archive carries the integration_network marker and belongs to the harness named for it, never to the gated set." \
+            "$INVARIANT_TEST_NETWORK_HOST" tests/
+
+          exit "$failures"
