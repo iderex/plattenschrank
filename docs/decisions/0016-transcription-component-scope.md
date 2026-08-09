@@ -165,3 +165,64 @@ Neither exists at the commit that adds this record:
 returns nothing. So the refusal above is stated in a document and nothing refuses
 it. Issue #54 stays open until the schemas and the validator exist and the test
 has been shown to go red when the refusal is removed.
+
+## Where that condition was met
+
+The section above stands as it was written. What follows is what happened
+afterwards, and it does not replace it.
+
+### The fields of the structured extraction
+
+| Field | What this record calls it above |
+| --- | --- |
+| `plate_id` | plate identifier |
+| `date` | date |
+| `exposure_time` | exposure time |
+| `plate_centre` | plate centre |
+| `emulsion` | emulsion |
+| `filter` | filter |
+| `telescope` | telescope |
+| `observer` | observer |
+
+The names are written here because the prose above names the fields in English
+and a schema needs keys. They are the same eight fields and not a ninth thing,
+and they are deliberately the names the pipeline uses for the same quantities
+rather than decorated ones. What keeps an extraction from being mistaken for a
+plate record is that it is its own document with its own schema and its own
+required parts, which is the argument above, and never that its keys were spelled
+differently.
+
+### The schema and the validator
+
+`src/plattenschrank/schemas/transcription_extraction.schema.json` is the schema
+for the structured extraction. `src/plattenschrank/transcription.py` is the code
+that decides each of its rules, and it reads the field names, the required parts
+of a read field and the bounds on a confidence out of that file rather than
+holding a second copy of them.
+
+The schema for the first output is the PRImA one named above and this repository
+does not carry it. `PAGE_DESCRIPTION_SCHEMA` in the same module holds the URL,
+and `tests/test_transcription.py` reads the URL back out of this record, so the
+module and this file cannot drift apart in silence.
+
+`tests/test_transcription.py` holds the eight names in the table above against
+the schema file in both directions, so a field added to one and not the other
+reds the suite.
+
+### The refusal, and what shows it bites
+
+The rule this record states, that an extraction whose field carries a value and
+no source-line reference is refused, is refused by `validate_extraction`. It
+takes the document and nothing else, and a test asserts that, because a second
+argument is how "there is no configuration under which it is accepted" stops
+being true.
+
+Removing `source_line` from the schema's own list of required parts is what
+shows the refusal is load-bearing rather than decorative, and it reds the suite,
+which is recorded in issue #54 with the run.
+
+Two refusals go past what a general JSON Schema validator would make of this
+file, and both fail closed. A string that is blank rather than empty is refused,
+where the schema's `minLength` of 1 accepts a single space. And a field that
+appears under both `fields` and `declined` is refused, which no keyword in the
+file expresses.

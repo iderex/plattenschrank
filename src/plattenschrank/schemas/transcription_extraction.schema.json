@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/iderex/plattenschrank/schemas/transcription-extraction/1.0",
+  "title": "The structured extraction of one transcribed page",
+  "description": "One document per page of a plate envelope or an observing logbook. It is what a person appears to have written, never what the pipeline holds to be true about a plate. docs/decisions/0016-transcription-component-scope.md is where that separation is argued.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "extraction_schema_version",
+    "page_description",
+    "fields",
+    "declined"
+  ],
+  "properties": {
+    "extraction_schema_version": {
+      "description": "The version of this schema the document was written against.",
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "page_description": {
+      "description": "The PAGE XML document this extraction was read from. Every source_line below names a line inside it.",
+      "type": "string",
+      "minLength": 1
+    },
+    "fields": {
+      "description": "The fields that were read. A field that could not be read is absent here and named under declined.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "plate_id": {"$ref": "#/$defs/read_field"},
+        "date": {"$ref": "#/$defs/read_field"},
+        "exposure_time": {"$ref": "#/$defs/read_field"},
+        "plate_centre": {"$ref": "#/$defs/read_field"},
+        "emulsion": {"$ref": "#/$defs/read_field"},
+        "filter": {"$ref": "#/$defs/read_field"},
+        "telescope": {"$ref": "#/$defs/read_field"},
+        "observer": {"$ref": "#/$defs/read_field"}
+      }
+    },
+    "declined": {
+      "description": "The fields the component would not answer for, each with the reason it gave. Declining is an outcome and not an error, so it is recorded rather than left as an absence nobody can distinguish from an oversight.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "plate_id": {"$ref": "#/$defs/reason"},
+        "date": {"$ref": "#/$defs/reason"},
+        "exposure_time": {"$ref": "#/$defs/reason"},
+        "plate_centre": {"$ref": "#/$defs/reason"},
+        "emulsion": {"$ref": "#/$defs/reason"},
+        "filter": {"$ref": "#/$defs/reason"},
+        "telescope": {"$ref": "#/$defs/reason"},
+        "observer": {"$ref": "#/$defs/reason"}
+      }
+    }
+  },
+  "$defs": {
+    "read_field": {
+      "description": "A field that was read. All three parts are required: the value alone is the thing this component exists not to produce.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "source_line", "confidence"],
+      "properties": {
+        "value": {
+          "description": "What the line appears to say, as text.",
+          "type": "string",
+          "minLength": 1
+        },
+        "source_line": {
+          "description": "The identifier of the line in the page description this value was read from. It is what makes a wrong value correctable once rather than everywhere it is used.",
+          "type": "string",
+          "minLength": 1
+        },
+        "confidence": {
+          "description": "How far the component stands behind the value, between 0 and 1. It is a different number from the per-line confidence in the page description, because a field can be assembled from more than one line.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "reason": {
+      "description": "Why a field was not answered for. Free text, and it may not be blank, because a blank reason is a decline nobody can act on.",
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}
