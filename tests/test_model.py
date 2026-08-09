@@ -95,6 +95,12 @@ SOURCED_ELSEWHERE = {
     "schema_version": "docs/decisions/0015-schema-versioning.md",
 }
 
+# The three components of the measurement uncertainty, read out of the
+# expansion above rather than written a second time. A separate list here would
+# be the place the two could disagree, and the disagreement would be invisible:
+# both would be lists of the same three strings until one of them moved.
+UNCERTAINTY_COMPONENTS = PROSE_IN_THE_MEASUREMENT_TABLE["uncertainty"]
+
 ENTITIES: tuple[type[Entity], ...] = (Plate, Exposure, Detection, Measurement)
 
 
@@ -232,6 +238,57 @@ def test_a_measurement_without_a_provenance_field_is_refused(
 def test_the_five_mandatory_fields_are_the_five_the_record_names() -> None:
     named = fields_named_by(PROVENANCE_RECORD)["The five mandatory fields"]
     assert named == MANDATORY_PROVENANCE
+
+
+def test_the_uncertainty_components_are_carried_apart_and_may_be_absent() -> None:
+    """Three columns rather than one figure, and each one able to say nothing.
+
+    A single column would make a consumer who wants to know why an error bar is
+    large recover the parts from a sum, which cannot be done. Requiring all
+    three would force a pipeline that estimated two of them to write something
+    for the third.
+    """
+    declared = {field.name for field in fields(Measurement)}
+    assert set(UNCERTAINTY_COMPONENTS) <= declared, (
+        "a measurement no longer carries "
+        f"{', '.join(sorted(set(UNCERTAINTY_COMPONENTS) - declared))}"
+    )
+    assert set(UNCERTAINTY_COMPONENTS) <= optional_fields(Measurement), (
+        "an uncertainty component that cannot be absent forces a row to state "
+        "a number for a component nobody estimated"
+    )
+
+
+@pytest.mark.parametrize("component", UNCERTAINTY_COMPONENTS)
+def test_an_unestimated_uncertainty_component_is_absent_and_never_a_zero(
+    component: str,
+) -> None:
+    """The distinction this issue exists for, held on the row in both readings.
+
+    A component nobody estimated and a component estimated at zero are opposite
+    statements: the first says the uncertainty from this source is unknown, the
+    second says there is none. Every consumer that reads a filled-in zero as the
+    second is reading a claim nobody made, and the error bar it derives is too
+    small rather than merely wrong.
+
+    Both directions are asserted, because only one of them is the failure worth
+    aiming at. An absent component surviving the round trip is the easy half. A
+    zero surviving as a number rather than being read back as an absence is what
+    stops a repair aimed at the first half from collapsing the two.
+    """
+    unestimated = a_measurement(sparse=True).to_row()
+    assert unestimated[component] is None, (
+        f"{component} was not estimated on this row and it is written as "
+        f"{unestimated[component]!r} rather than as an absence"
+    )
+    assert Measurement.from_row(unestimated).to_row()[component] is None
+
+    estimated_at_zero = a_measurement().to_row()
+    estimated_at_zero[component] = 0.0
+    assert Measurement.from_row(estimated_at_zero).to_row()[component] is not None, (
+        f"{component} was estimated at zero and reading the row back turned it "
+        "into an absence, which says nobody estimated it"
+    )
 
 
 def test_the_schema_version_is_the_one_the_record_names() -> None:
