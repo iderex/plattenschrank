@@ -14,8 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from plattenschrank import DISTRIBUTION
-from plattenschrank import cli
+from plattenschrank import DISTRIBUTION, cli
 from plattenschrank.cli import EXIT_NOT_IMPLEMENTED, STAGES, Stage, build_parser, main
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent

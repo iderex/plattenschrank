@@ -164,7 +164,9 @@ def incident(density_values: NDArray[np.float64]) -> NDArray[np.float64]:
     a number, and the number is not a flux.
     """
     clipped = np.clip(density_values, 1e-9, D_MAX - 1e-9)
-    return np.asarray(HALF * (clipped / (D_MAX - clipped)) ** (1.0 / GAMMA), dtype=np.float64)
+    return np.asarray(
+        HALF * (clipped / (D_MAX - clipped)) ** (1.0 / GAMMA), dtype=np.float64
+    )
 
 
 def vignette_field(shape: tuple[int, int]) -> NDArray[np.float64]:
@@ -188,9 +190,7 @@ def _gaussian(
     rows, columns = shape
     grid_y, grid_x = np.mgrid[0:rows, 0:columns].astype(np.float64)
     squared = (grid_x - x) ** 2 + (grid_y - y) ** 2
-    return np.asarray(
-        amplitude * np.exp(-squared / (2.0 * sigma**2)), dtype=np.float64
-    )
+    return np.asarray(amplitude * np.exp(-squared / (2.0 * sigma**2)), dtype=np.float64)
 
 
 def _disc(
@@ -277,9 +277,7 @@ def plate(seed: int, size: int = 192, collection: str = "synthetic") -> Plate:
     brightest = int(np.argmax(FLUXES))
 
     for (x, y), flux in zip(positions, FLUXES, strict=True):
-        field_exposure += _gaussian(
-            shape, x, y, sigma, flux / (2.0 * np.pi * sigma**2)
-        )
+        field_exposure += _gaussian(shape, x, y, sigma, flux / (2.0 * np.pi * sigma**2))
 
     # The halo and the ghost come off the brightest source, so they are placed
     # from it rather than drawn. An optical artefact whose parent moved with the
@@ -301,7 +299,10 @@ def plate(seed: int, size: int = 192, collection: str = "synthetic") -> Plate:
     )
     under_halo_flux = 2600.0
     field_exposure += _gaussian(
-        shape, under_halo[0], under_halo[1], sigma,
+        shape,
+        under_halo[0],
+        under_halo[1],
+        sigma,
         under_halo_flux / (2.0 * np.pi * sigma**2),
     )
 
@@ -400,7 +401,7 @@ def _describe(
     ]
     contaminated = bool((aperture & artefact_mask).any()) or bool(neighbours)
 
-    row, column = int(round(y)), int(round(x))
+    row, column = round(y), round(x)
     row = min(max(row, 0), shape[0] - 1)
     column = min(max(column, 0), shape[1] - 1)
     amplitude = flux / (2.0 * np.pi * sigma**2) * float(vignette[row, column])
@@ -489,7 +490,9 @@ def _card(keyword: str, value: object, comment: str) -> bytes:
     elif isinstance(value, float):
         body = f"{keyword:<8}= {value:>20.10G}"
     else:
-        raise TypeError(f"{keyword} carries a {type(value).__name__}, which no card holds")
+        raise TypeError(
+            f"{keyword} carries a {type(value).__name__}, which no card holds"
+        )
     if comment:
         body = f"{body} / {comment}"
     if len(body) > CARD:

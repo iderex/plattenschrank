@@ -29,6 +29,7 @@ pytestmark = pytest.mark.unit
 
 GUARD = Path(__file__).resolve().parent / "conftest.py"
 
+
 def suite_covering(names: list[str]) -> str:
     """A scratch suite with one test per named marker.
 
