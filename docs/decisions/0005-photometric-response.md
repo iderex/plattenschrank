@@ -61,3 +61,28 @@ commit that adds this record there is no test suite:
 
 returns nothing. So the refusal above is stated and not enforced, and issue #6
 stays open until a test proves it bites.
+
+## Where that condition was met
+
+The section above stands as it was written. What follows is what happened
+afterwards, and it does not replace it.
+
+`src/plattenschrank/model.py` refuses a measurement built or read back without a
+`calibration_id`, and it refuses it at construction rather than at the far end of
+the pipeline, because construction is the last point at which the missing
+identifier is still recoverable. It reached `main` in merge commit
+`2fad41b6af749dd41b3aeeb5b9f2c2ffe4210d5b` from pull request #108.
+
+Two shapes of absence are covered. A value that is absent is the obvious one. A
+value that is present and blank is the one worth aiming at, because it is what a
+mapping from an archive record with a missing column produces and it satisfies
+every check that asks only whether the field is there.
+
+`tests/test_model.py` covers `calibration_id` as its own case rather than folded
+into one assertion over the whole provenance set, so the refusal of this field
+can be lost without the other four hiding it.
+
+The proof it bites is
+`origin/scratch/model-reds-when-a-required-field-is-no-longer-refused`, one
+change against `main` that stops refusing an absent required field. What that
+run printed is in issue #6.
