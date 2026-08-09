@@ -47,6 +47,8 @@ demonstrates.
 from __future__ import annotations
 
 import os
+import socket
+from typing import Any, NoReturn
 
 import pytest
 
@@ -66,6 +68,137 @@ SCHEME = "requirement_markers"
 # a backend observed in force.
 NON_INTERACTIVE_BACKEND = "Agg"
 os.environ["MPLBACKEND"] = NON_INTERACTIVE_BACKEND
+
+# The refusal of anything that would leave this host, installed in this process
+# at import time rather than around it.
+#
+# `docs/decisions/0014-local-first-and-no-default-egress.md` is the position and
+# this is what refuses a departure from it. It is here rather than in a firewall
+# rule on the runner for one reason: a block that lives in the runner
+# configuration is a block a contributor does not get, so it would hold in the
+# one place nothing needs it and be absent in the place the software is meant to
+# run. Patching the standard library travels with the repository.
+#
+# It also separates two failures that otherwise look the same. An archive that
+# is down and a test that reached for an archive it should not have reached for
+# both appear as a red suite, and after this only the second one can happen in
+# the gated set.
+
+REFUSAL = "outbound connections are refused in this suite"
+
+# The address families that can carry a packet off this machine. A unix domain
+# socket cannot, and neither can the families the operating system uses to talk
+# to itself, so the block reads the family rather than guessing from the address.
+ROUTABLE_FAMILIES = frozenset({socket.AF_INET, socket.AF_INET6})
+
+# Loopback is not outbound, and refusing it would be a different rule than the
+# one decision 0014 states. `socket.socketpair` is built on a loopback
+# connection on Windows, so a block that refused this would refuse a piece of
+# the standard library on one of the two platforms this suite runs on.
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+
+
+class OutboundConnectionRefused(RuntimeError):
+    """Raised where a gated test reached for something off this machine.
+
+    Its own type rather than `OSError`, because a test that catches `OSError`
+    around a connection would swallow this and report that the host was
+    unreachable. The two are opposite statements about the suite and must not be
+    catchable by the same handler.
+    """
+
+
+def leaves_this_host(family: int, address: object) -> bool:
+    """Whether connecting to this address would put a packet on a wire."""
+    if family not in ROUTABLE_FAMILIES:
+        return False
+    if not isinstance(address, tuple) or not address:
+        # A routable family with an address shape nothing here can read. Refused
+        # rather than allowed, because the alternative fails open on exactly the
+        # case nobody anticipated.
+        return True
+    host = address[0]
+    return not (isinstance(host, str) and host in LOOPBACK_HOSTS)
+
+
+def _refuse(wanted: object) -> NoReturn:
+    raise OutboundConnectionRefused(
+        f"{REFUSAL}, and this one wanted {wanted!r}. A test that needs an "
+        "archive carries the integration_network marker and runs in the harness "
+        "named for it, never in the gated set."
+    )
+
+
+# The mark an installed wrapper carries, and the reason it has to.
+#
+# `tests/test_marker_scheme.py` and `tests/test_offline.py` run this file's own
+# source under `pytester`, which imports it a second time as a different module
+# in this same process. Without this mark that second import wraps the first
+# wrapper, and the exception the outer one raises belongs to the copy rather than
+# to the module a test imported `OutboundConnectionRefused` from, so
+# `pytest.raises` stops matching and the guard tests red for a reason that has
+# nothing to do with the guard. Measured rather than reasoned about: the two
+# tests in `tests/test_offline.py` that expect the refusal passed alone and
+# failed in the full suite before this existed.
+INSTALLED = "refuses_outbound_connections"
+
+
+def _install_outbound_block() -> None:
+    """Refuse at the socket layer, which is the layer nothing gets under.
+
+    `socket.create_connection` is patched as well as the two methods, and not
+    because it could get past them. It is patched because it is called with the
+    host as somebody wrote it, and the methods are called with whatever name
+    resolution returned, so the message a reader sees names `example.org` rather
+    than an address they then have to look up.
+
+    Installing twice is a no-op rather than a second wrapper, for the reason
+    written above the mark.
+    """
+    if getattr(socket.socket.connect, INSTALLED, False):
+        return
+
+    connect = socket.socket.connect
+    connect_ex = socket.socket.connect_ex
+    create_connection = socket.create_connection
+
+    def guarded_connect(self: socket.socket, address: Any) -> None:
+        if leaves_this_host(self.family, address):
+            _refuse(address)
+        connect(self, address)
+
+    def guarded_connect_ex(self: socket.socket, address: Any) -> int:
+        if leaves_this_host(self.family, address):
+            _refuse(address)
+        return connect_ex(self, address)
+
+    def guarded_create_connection(address: Any, *args: Any, **kwargs: Any) -> Any:
+        if leaves_this_host(socket.AF_INET, address):
+            _refuse(address)
+        return create_connection(address, *args, **kwargs)
+
+    for wrapper in (guarded_connect, guarded_connect_ex, guarded_create_connection):
+        setattr(wrapper, INSTALLED, True)
+
+    socket.socket.connect = guarded_connect  # type: ignore[method-assign]
+    socket.socket.connect_ex = guarded_connect_ex  # type: ignore[method-assign]
+    socket.create_connection = guarded_create_connection  # type: ignore[assignment]
+
+
+_install_outbound_block()
+
+# WHAT THIS DOES NOT REFUSE, and the sentence is negative and stays negative.
+# Name resolution is not blocked, so a test that calls `socket.getaddrinfo` and
+# never connects puts a query on the wire and passes. Nor is a raw socket sending
+# with `sendto`, and nor is a subprocess: `tests/test_cli.py` starts interpreters
+# of its own and this block does not reach into them. What is refused is a
+# connection attempted from this process, which is the shape every client library
+# in the locked graph uses.
+
+
+def pytest_report_header() -> str:
+    """Say the block is in force before the first result, not after the last."""
+    return f"{REFUSAL}, except to {', '.join(sorted(LOOPBACK_HOSTS))}"
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

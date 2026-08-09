@@ -13,10 +13,9 @@
 #
 # Which legs exist here today is not the whole set the gate is working towards.
 # `docs/gate-parity.md` holds the target one row per check, and the rows that
-# name this job are #21 for the type checker in strict mode, #23 and #24 for the
-# headless and offline proofs, #26 for the dependency floor, #27 for the audit of
-# the installed graph, and #28 for coverage. Each of those adds its leg here
-# under its own issue.
+# name this job are #21 for the type checker in strict mode, #23 for the headless
+# proof, #26 for the dependency floor, #27 for the audit of the installed graph,
+# and #28 for coverage. Each of those adds its leg here under its own issue.
 name: build
 
 on:
@@ -105,11 +104,21 @@ jobs:
         # leg above the only thing that touched the environment.
         run: uv run --no-sync mypy
 
-      - name: Run the default suite with no display and without elevation
+      - name: Run the default suite with no display, no elevation and no outbound connections
         # The default selection is `-m unit`, set in `pyproject.toml`, so this
         # runs the gated set and nothing else. What it deliberately leaves out
         # is the network-bound and hardware-bound half, and #29 is what makes
         # this job print that in a line a reader of a green check can see.
+        #
+        # The third condition in the name is established by the suite rather
+        # than by anything written here, and the leg is named for it anyway so
+        # that a reader of a green check is not left to find out by reading
+        # `tests/conftest.py`. The block is a refusal at the socket layer inside
+        # the test process, which is what makes a contributor's run and this one
+        # the same run. It is not a firewall rule on the runner, because that
+        # would hold in the one place nothing needs it. What it refuses and what
+        # it does not is argued where it lives, and `tests/test_offline.py` is
+        # what reds when it is removed.
         #
         # Two of the four conditions in
         # `docs/decisions/0012-headless-and-cpu-by-default.md` are established

@@ -62,7 +62,7 @@ what this board is doing rather than from parity.
 | --- | --- | --- |
 | A determinism check | Decision 0013 says the same input through the same version produces byte-identical output. That promise is worth nothing until a check runs a fixture twice and compares. | #14 |
 | A headless check | The default suite has to run with no display, so an operator with a scanner and a workstation is not blocked by a test that wanted a window. | #23 |
-| An offline check | Nothing is to leave the host by default, which is the decision #15 records. A suite that quietly reaches the network passes on a runner that has one and fails in the place this software is meant to run. | #24 |
+| An offline check | Nothing is to leave the host by default, which is the decision #15 records. A suite that quietly reaches the network passes on a runner that has one and fails in the place this software is meant to run. | Landed. The refusal is in `tests/conftest.py` and runs inside the suite leg of `build` rather than as a check of its own, so there is no separate context to name. |
 | A coverage bar on the arithmetic that reaches a published number | A number this pipeline publishes can be wrong without anything crashing, which is the whole subject of this board. The bar is aimed at the arithmetic behind published numbers rather than at the repository as a whole, because a repository-wide percentage is met by testing the parts that are easy to test. | #28 |
 
 ## The list proposed for the ruleset
