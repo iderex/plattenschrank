@@ -41,8 +41,8 @@ and blocks no merge.
 | --- | --- | --- |
 | `build` | Exists here under the same name. | The one check every other row leans on. It installs the locked graph, formats and lints, type checks in strict mode, runs the gated suite, and audits the installed graph. It gates nothing, like every other check here. |
 | `ABI floor build` | Deviation. Becomes the `dependency floor` check run, which exists here. | The target is a plugin inside a host and has to keep working against the oldest host it claims. There is no plugin host here. The equivalent risk is a dependency resolved higher than the floor the manifest declares, so the floor being tested is the dependency floor. |
-| `Package (JPRM) / Build package` | Deviation. Becomes the checksummed artefact build, owed by #76 with its check owed by #34. | JPRM packages a plugin for a host that installs plugins. This board ships an artefact an operator installs directly, so the packaging step exists and the tool does not. |
-| `Package (JPRM) / Generate SBOM` | Becomes a bill-of-materials check, owed by #34. | The property is the same on both boards: a released artefact declares what is inside it. Only the packaging tool that emits it differs. |
+| `Package (JPRM) / Build package` | Deviation. Becomes the `package` check run, which exists here. The artefact an operator downloads is still owed by #76. | JPRM packages a plugin for a host that installs plugins. This board ships an artefact an operator installs directly, so the packaging step exists and the tool does not. What runs here builds both distributions on every pull request, installs the wheel into an environment holding nothing else, and runs the entry point out of it. |
+| `Package (JPRM) / Generate SBOM` | Becomes the `bill of materials` check run, which exists here. | The property is the same on both boards: a released artefact declares what is inside it. Only the packaging tool that emits it differs. The document is CycloneDX, generated from the environment the wheel was installed into rather than from `pyproject.toml`, because the manifest carries ranges and only a resolved version can be matched against an advisory. |
 | `CodeQL` | A single analysis job, owed by #33. | The property is static analysis published to the code scanning tab. |
 | `Analyze (csharp)` | Folded into the same single analysis job, owed by #33. | The target carries two analysis contexts because it has two languages under analysis. This board has one implementation language by decision 0001, so one job covers it and a second context would name nothing. |
 | `DCO sign-off` | Exists here under the same name. | Runs on every pull request and gates nothing. The certificate it points at is absent, which is #30, and whether a certificate is the right instrument here at all is entry 8 of #1. |
@@ -81,28 +81,31 @@ the one that would fix it.
 | `Reject Trojan Source Unicode` | [run](https://github.com/iderex/plattenschrank/actions/runs/31216128544/job/92989965763) on the head of merged pull request #81 |
 | `Audit workflows (zizmor)` | [run](https://github.com/iderex/plattenschrank/actions/runs/31216128510/job/92989964699) on the head of merged pull request #81 |
 | `dependency-review` | [run](https://github.com/iderex/plattenschrank/actions/runs/31216129759/job/92989968010) on the head of merged pull request #81 |
+| `package` | [run](https://github.com/iderex/plattenschrank/actions/runs/31306494130/job/93227605187) on the head of merged pull request #110 |
+| `bill of materials` | [run](https://github.com/iderex/plattenschrank/actions/runs/31306494130/job/93227605172) on the head of merged pull request #110 |
 
 `build` was also green on the heads of merged pull requests #103 and #104, and
-`dependency floor` has existed for one merged pull request, which is #105. A
+`dependency floor` has existed for one merged pull request, which is #105.
+`package` and `bill of materials` have existed for one, which is #110. A
 name is listed here after it has been green on a merged head and not before,
 because requiring a check that has never run green blocks every merge including
 the one that would fix it.
 
 Two notes for whoever applies it.
 
-Three of the six names are produced twice on the same commit, once by the push
+Most of the names above are produced twice on the same commit, once by the push
 trigger and once by the pull-request trigger, because their workflows declare
-both. Which three is counted rather than listed, since it follows from the
+both. Which ones is counted rather than listed, since it follows from the
 triggers and moves when they do:
 
-    gh api repos/iderex/plattenschrank/commits/431a4fa/check-runs --jq '[.check_runs[].name] | group_by(.) | map({name: .[0], runs: length})'
-    [{"name":"Audit workflows (zizmor)","runs":1},{"name":"DCO sign-off","runs":1},{"name":"Reject Trojan Source Unicode","runs":2},{"name":"build","runs":2},{"name":"dependency floor","runs":2},{"name":"dependency-review","runs":1},{"name":"zizmor","runs":1}]
+    gh api repos/iderex/plattenschrank/commits/286d439/check-runs --jq '[.check_runs[].name] | group_by(.) | map({name: .[0], runs: length})'
+    [{"name":"Audit workflows (zizmor)","runs":1},{"name":"DCO sign-off","runs":1},{"name":"Reject Trojan Source Unicode","runs":2},{"name":"bill of materials","runs":2},{"name":"build","runs":2},{"name":"dependency floor","runs":2},{"name":"dependency-review","runs":1},{"name":"package","runs":2},{"name":"zizmor","runs":1}]
 
 Which of the two a required context binds to, or whether it binds to both, is
 not measured here and no command in this repository answers it. Check it before
 applying the list, because the answer decides whether one green run is enough.
-It was written here about one name when only one had the shape, and it is three
-now, which is why the count above is read rather than restated.
+It was written here about one name when only one had the shape, then three, and
+it is five now, which is why the count above is read rather than restated.
 
 There is also a check run named `zizmor` on these commits. It is the
 code-scanning analysis produced by the SARIF upload, not a workflow job, and its
