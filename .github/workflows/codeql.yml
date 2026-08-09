@@ -1,0 +1,89 @@
+# Static analysis of the implementation language, published to the code scanning
+# tab. `docs/gate-parity.md` carries two rows the target gate has for this
+# property, `CodeQL` and `Analyze (csharp)`, and both resolve to the one job
+# below: the target analyses two languages and this board has one, so a second
+# context here would name nothing.
+#
+# The job name is an interface rather than a label, in the same way the `build`
+# job's name is. A ruleset matches a check run by its name and nothing else, so
+# renaming this job removes it from every ruleset that required the old name and
+# the removal is silent - the gate stops being required and goes on reporting
+# green. `Analyze (python)` is the name, and it is the target's own shape with
+# its language substituted.
+#
+# The analysis produces a second check run that this job does not name. The
+# upload creates the code-scanning result, which arrives under its own name
+# derived from the category below rather than from the job. Which names appear
+# on a commit is read rather than assumed:
+#
+#     gh api repos/iderex/plattenschrank/commits/<sha>/check-runs \
+#       --jq '[.check_runs[].name] | sort'
+#
+# Unlike the SARIF upload in `zizmor.yml`, no step here is permitted to fail.
+# That workflow's upload carries `continue-on-error` so that a transient
+# code-scanning failure cannot skip its own gate step, which is why the parity
+# document says its code-scanning check run must not be required. This one has
+# no such step, so its result stands or the job reds.
+name: CodeQL
+
+on:
+  # Both triggers, matching `build.yml` and `unicode-guard.yml`. The
+  # pull-request trigger is what a ruleset reads. The push trigger is what lets
+  # a deliberate violation be demonstrated on a scratch branch without opening a
+  # pull request for it.
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+# Explicit deny-all at workflow level; the job below grants only what it needs.
+permissions: {}
+
+# Cancel a superseded run on the same ref. The analysis is a pure read of the
+# tree at a commit, so an obsolete run has no result worth waiting for.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (python)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      security-events: write # write the analysis into the code-scanning tab
+      contents: read # check out the tree to analyse
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # No step pushes via git, so do not persist the GITHUB_TOKEN in
+          # .git/config where a later step could read it.
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        # `build-mode: none` because Python is not compiled and there is nothing
+        # to observe a build of. Stating it removes the autobuilder from the
+        # job, so a failure here is a failure of the analysis rather than of a
+        # build step this package does not have.
+        #
+        # `security-and-quality` rather than the default set. The default query
+        # suite is aimed at a service under attack; the defect class this board
+        # is against is arithmetic that produces a plausible wrong number, and
+        # the quality half of this suite is where the queries about unreachable
+        # branches, unused results and comparison mistakes live. The cost is a
+        # longer run and findings that are not security findings, which is the
+        # trade this subject wants.
+        uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+        with:
+          languages: python
+          build-mode: none
+          queries: security-and-quality
+
+      - name: Perform CodeQL analysis
+        # The category is what separates this analysis from `zizmor`'s in the
+        # code scanning tab. Two analyses uploading under one category overwrite
+        # each other's results, and the overwrite is silent.
+        uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+        with:
+          category: "/language:python"
