@@ -201,6 +201,12 @@ def test_a_source_outside_the_supported_range_is_flagged_and_not_measured(
     its recorded value is at the ceiling, and a curve asked to invert it returns
     a number. Returning that number is the failure, because nothing downstream
     could tell it from one the calibrators actually reached.
+
+    On this generator that source also sits near the plate centre, so it leaves
+    the calibrated band as well. What this test shows is therefore the joint
+    refusal, and the assertion names the range it is about so that losing that
+    one is caught even while the other still refuses. The test below is what
+    holds the two apart.
     """
     built, _, curve = fitted(seed)
     saturated = max(built.truth.sources, key=lambda source: source.flux)
