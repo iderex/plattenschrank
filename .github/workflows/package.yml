@@ -179,13 +179,18 @@ jobs:
         # here would mean a different document on two days with no change to
         # this tree, which is the argument `pyproject.toml` makes for the type
         # checker and the linter.
+        #
+        # The document goes to standard output and is redirected here rather
+        # than named with the generator's own flag, because the flag's spelling
+        # is a fact about the generator's version and this way there is one
+        # fewer of those.
         env:
           CYCLONEDX_VERSION: "7.1.0"
         run: |
           set -euo pipefail
           uvx --no-build --from "cyclonedx-bom==${CYCLONEDX_VERSION}" \
             cyclonedx-py environment "$RUNNER_TEMP/wheel-env/bin/python" \
-            --output-format JSON --outfile bom.json
+            --output-format JSON > bom.json
 
       - name: Refuse a document that describes nothing
         # The refusal this check is worth having. A generator pointed at an
