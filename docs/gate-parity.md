@@ -50,7 +50,7 @@ and blocks no merge.
 | `Enforce greppable invariants` | Not yet. Owed by #33. | The invariants this board can state today are a hard-coded absolute path from a developer machine, a credential-shaped literal, and a test asserting against a network host. |
 | `Reject Trojan Source Unicode` | Exists here under the same name. | Runs on every branch and every pull request, and gates nothing. |
 | `Audit workflows (zizmor)` | Exists here under the same name. | Runs on every pull request, and gates nothing. |
-| `prettier` | Deviation. Becomes formatting of the implementation language, owed by #20. | `prettier` formats the target's web assets. There are no web assets here, so the formatting check covers the implementation language instead, which on this board is `ruff format` under decision 0001. |
+| `prettier` | Deviation, and answered by a leg of `build` rather than by a check run of its own. | `prettier` formats the target's web assets. There are no web assets here, so the formatting check covers the implementation language instead, which on this board is `ruff format` under decision 0001. It runs beside `ruff check` in the `Format and lint` leg, so a ruleset requiring it requires `build` and there is no separate context to name. |
 | `dependency-review` | Exists here under the same name. | Runs on every pull request, and gates nothing. |
 
 ## Additions this subject needs

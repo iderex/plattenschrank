@@ -173,7 +173,11 @@ def project_configuration() -> dict[str, object]:
 
 def test_the_package_carries_no_ignore_comment() -> None:
     """The count the issue asks for, over the tree it is in."""
-    found = [entry for path, text in checked_modules() for entry in ignore_entries_in_source(path, text)]
+    found = [
+        entry
+        for path, text in checked_modules()
+        for entry in ignore_entries_in_source(path, text)
+    ]
     assert found == []
 
 
@@ -198,7 +202,11 @@ def test_an_ignore_comment_is_refused() -> None:
 
 def test_an_ignore_comment_is_refused_however_it_is_spaced() -> None:
     """The spellings mypy itself accepts, which a stricter pattern would miss."""
-    for spelling in ("#type:ignore", "#  type :  ignore", "# type: ignore # and a note"):
+    for spelling in (
+        "#type:ignore",
+        "#  type :  ignore",
+        "# type: ignore # and a note",
+    ):
         assert ignore_entries_in_source("src/m.py", f"x = 1  {spelling}\n")
 
 
@@ -218,7 +226,9 @@ def test_prose_about_an_ignore_comment_is_not_refused() -> None:
 def test_a_word_that_merely_starts_with_ignore_is_not_refused() -> None:
     """`# type: ignored` is not a suppression, and the word boundary is what
     says so."""
-    assert ignore_entries_in_source("src/m.py", "x = 1  # type: ignored by nobody\n") == []
+    assert (
+        ignore_entries_in_source("src/m.py", "x = 1  # type: ignored by nobody\n") == []
+    )
 
 
 def test_an_inline_mypy_setting_that_relaxes_is_refused() -> None:
@@ -231,7 +241,9 @@ def test_an_inline_mypy_setting_that_relaxes_is_refused() -> None:
 def test_an_inline_mypy_setting_that_tightens_is_not_refused() -> None:
     assert ignore_entries_in_source("src/m.py", "# mypy: strict\nx = 1\n") == []
     assert (
-        ignore_entries_in_source("src/m.py", "# mypy: enable-error-code=redundant-expr\n")
+        ignore_entries_in_source(
+            "src/m.py", "# mypy: enable-error-code=redundant-expr\n"
+        )
         == []
     )
 

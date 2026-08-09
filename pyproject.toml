@@ -51,6 +51,17 @@ test = [
 # refuses a different set on two days with no change to this tree. The version
 # moves in a pull request that carries the run it changed.
 typecheck = ["mypy==2.3.0"]
+# Pinned exactly for the reason written above the type checker, which applies to
+# this one word for word: every release moves what a linter refuses, so a range
+# means the gate refuses a different set on two days with no change to this tree.
+#
+# It is in the locked graph rather than fetched at run time, which is the
+# opposite of how `pip-audit` is reached in `.github/workflows/build.yml`. That
+# difference is deliberate. `pip-audit` reads the installed graph, and an auditor
+# installed into the graph it audits is auditing itself; `ruff` reads this
+# tree's source, so the version the gate uses is the version a contributor should
+# be able to install from the lock file and get the same answer from.
+lint = ["ruff==0.16.2"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/plattenschrank"]
@@ -81,6 +92,60 @@ warn_unreachable = true
 # relaxes a rule, and refuses an inline `# type: ignore` in `src/`, so an ignore
 # added later has to argue for itself in a pull request instead of arriving in a
 # diff nobody reads to the bottom.
+
+[tool.ruff]
+# The one width both halves of the tool refuse at. The formatter wraps code to
+# it and `E501` refuses a line over it, so a single number decides both and a
+# reader does not have to know which default is in force. It is set here rather
+# than left implicit because it is the only number this gate refuses at.
+line-length = 88
+# Where a first-party import lives. Without `tests` here, `conftest` resolves to
+# nothing ruff knows and is sorted into the third-party group beside `pytest`,
+# which reads as though the suite's own helper module came from the index. Both
+# directories are named because both hold modules this tree imports by name.
+src = ["src", "tests"]
+# `target-version` is deliberately absent. Ruff reads `requires-python` above,
+# so a second copy here is a copy that goes stale against the interpreter floor
+# this package actually claims.
+
+[tool.ruff.lint]
+# Preview rules are off unless one is named below by its own code. Without this,
+# `preview` would enable every unreleased rule inside the prefixes selected
+# below, and the set the gate refuses would change under a version bump for
+# rules nobody argued for. With it, exactly one preview rule runs and it is
+# `RUF069`, which is the only rule in this version that reads a float equality
+# comparison at all.
+preview = true
+explicit-preview-rules = true
+# The set is chosen for the defects that cost something on this board rather
+# than for coverage of the rule table. Four of them are named in issue #20 and
+# each has a rule here:
+#
+#   F401 (in `F`)   an unused import, which is what a moved dependency leaves
+#                   behind and what makes a stale one look load-bearing
+#   B006 (in `B`)   a mutable default argument
+#   E722 (in `E`)   a bare `except`, and `BLE001` the wider case of catching
+#                   `Exception`. On a pipeline either one swallows a calibration
+#                   failure and returns a number that looks like the others.
+#   RUF069          a floating point equality comparison
+#
+# The rest are here for reasons of the same kind. `I` sorts imports so a diff
+# that adds one is a one-line diff. `NPY` refuses the numpy calls whose
+# replacements exist because the originals carried a defect, and this package's
+# one runtime dependency is numpy. `UP` and the remainder of `RUF` catch the
+# constructs that survive an interpreter floor moving.
+select = ["F", "E", "W", "I", "B", "BLE", "UP", "NPY", "RUF", "RUF069"]
+# What `RUF069` reaches is narrower than its name, and the gap is recorded here
+# rather than left for somebody to discover by trusting it. It reads a
+# comparison where one side is a float literal or an expression it can infer to
+# one, so `density == 0.0` is refused. It does not read a comparison between two
+# names the type checker knows to be floats: with `a: float` and `b: float`,
+# `a == b` passes. Measured on the pinned version above with a two-line file:
+#
+#     uv run --no-sync ruff check --isolated --preview --select RUF069 -
+#
+# So this rule narrows the class rather than closing it, and the remainder is
+# caught by reading or it is not caught.
 
 [tool.pytest.ini_options]
 # Four markers and no more, one line of meaning each. `tests/conftest.py`

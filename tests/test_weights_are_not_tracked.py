@@ -46,7 +46,9 @@ WEIGHTS_DIRECTORY = "weights"
 # sits. Serialisation formats only. `.bin` is deliberately absent: it is the one
 # suffix on this kind of list that has a hundred innocent uses, and a check that
 # reds on an unrelated file is a check somebody turns off.
-WEIGHT_SUFFIXES = frozenset({".ckpt", ".h5", ".onnx", ".pb", ".pt", ".pth", ".safetensors"})
+WEIGHT_SUFFIXES = frozenset(
+    {".ckpt", ".h5", ".onnx", ".pb", ".pt", ".pth", ".safetensors"}
+)
 
 # One mebibyte. The largest file this repository tracks is 14666 bytes:
 #
@@ -175,7 +177,10 @@ def test_a_file_merely_named_for_weights_is_not_refused() -> None:
 
 def test_a_directory_whose_name_merely_contains_weights_is_not_refused() -> None:
     """The same mistake one level up, where the segment is the directory."""
-    assert refusals([TrackedFile("docs/weights-notes/large.dat", THRESHOLD_BYTES + 1)]) == []
+    assert (
+        refusals([TrackedFile("docs/weights-notes/large.dat", THRESHOLD_BYTES + 1)])
+        == []
+    )
 
 
 def test_the_directory_rule_reaches_any_depth() -> None:

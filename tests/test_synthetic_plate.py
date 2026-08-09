@@ -143,9 +143,12 @@ def test_the_header_is_a_function_of_the_seed_and_not_of_the_clock() -> None:
     first = dict((key, value) for key, value, _ in synthetic.plate(SEED).header)
     second = dict((key, value) for key, value, _ in synthetic.plate(SEED).header)
     assert first == second
-    assert first["DATE-OBS"] != dict(
-        (key, value) for key, value, _ in synthetic.plate(SEED + 3).header
-    )["DATE-OBS"]
+    assert (
+        first["DATE-OBS"]
+        != dict((key, value) for key, value, _ in synthetic.plate(SEED + 3).header)[
+            "DATE-OBS"
+        ]
+    )
 
 
 def test_the_recovered_flux_matches_the_truth_for_every_recoverable_source(

@@ -107,8 +107,7 @@ def pytest_collection_modifyitems(
     raise pytest.UsageError(
         "every test states its requirements with one of the markers "
         f"{', '.join(sorted(declared))}. These state none, either by carrying no "
-        "marker or by carrying one the scheme does not name: "
-        + ", ".join(unstated)
+        "marker or by carrying one the scheme does not name: " + ", ".join(unstated)
     )
 
 
@@ -166,7 +165,8 @@ def pytest_collection_finish(session: pytest.Session) -> None:
         # removes a statement rather than a refusal.
         return
     declared = requirement_markers(session.config)
-    covered = frozenset(
-        mark.name for item in session.items for mark in item.iter_markers()
-    ) & declared
+    covered = (
+        frozenset(mark.name for item in session.items for mark in item.iter_markers())
+        & declared
+    )
     reporter.write_line(disclosure(session.config, covered))

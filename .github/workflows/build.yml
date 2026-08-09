@@ -13,10 +13,10 @@
 #
 # Which legs exist here today is not the whole set the gate is working towards.
 # `docs/gate-parity.md` holds the target one row per check, and the rows that
-# name this job are #20 for the formatter and linter, #21 for the type checker
-# in strict mode, #23 and #24 for the headless and offline proofs, #26 for the
-# dependency floor, #27 for the audit of the installed graph, and #28 for
-# coverage. Each of those adds its leg here under its own issue.
+# name this job are #21 for the type checker in strict mode, #23 and #24 for the
+# headless and offline proofs, #26 for the dependency floor, #27 for the audit of
+# the installed graph, and #28 for coverage. Each of those adds its leg here
+# under its own issue.
 name: build
 
 on:
@@ -65,7 +65,35 @@ jobs:
         # already satisfy `pyproject.toml`, so this leg reds on a dependency
         # change that skipped the lock rather than quietly installing a graph
         # nobody recorded. The interpreter comes from `.python-version`.
-        run: uv sync --locked --extra test --extra typecheck
+        run: uv sync --locked --extra test --extra typecheck --extra lint
+
+      - name: Format and lint
+        # First of the legs that judge the tree, because it is the cheapest and
+        # because a reader who has to fix something here would rather learn it
+        # before waiting out a type check and a suite.
+        #
+        # Both halves come out of the lock file, so the version that judges here
+        # is the version `uv sync` puts on a contributor's machine. What each one
+        # refuses is in `[tool.ruff]` and `[tool.ruff.lint]` in `pyproject.toml`
+        # rather than in flags here, which is what makes the local answer and
+        # this one the same answer.
+        #
+        # `--check` and `--no-fix` are the same instruction twice: a gate reports
+        # and never writes. A leg that repaired what it found would be green on a
+        # tree nobody had corrected, and the correction would exist only inside a
+        # run log.
+        #
+        # `set -e` is deliberately absent, and this is the one leg where it is.
+        # Formatting and lint are two verdicts on one push, and stopping at the
+        # first would send somebody back for a second round over a defect the
+        # same run had already seen. Both run, both print, and the leg exits
+        # non-zero if either did.
+        run: |
+          set -uo pipefail
+          status=0
+          uv run --no-sync ruff format --check --diff . || status=1
+          uv run --no-sync ruff check --no-fix --output-format github . || status=1
+          exit "$status"
 
       - name: Type check
         # No arguments: strict mode, the interpreter version and the directory

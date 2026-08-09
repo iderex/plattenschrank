@@ -94,7 +94,9 @@ def test_the_plotting_backend_is_forced_to_a_non_interactive_one() -> None:
     assert os.environ["MPLBACKEND"] in NON_INTERACTIVE_BACKENDS
 
 
-def test_the_forced_backend_is_not_read_from_the_environment_this_suite_inherited() -> None:
+def test_the_forced_backend_is_not_read_from_the_environment_this_suite_inherited() -> (
+    None
+):
     """The near miss, which is a suite that passes for somebody else's reason.
 
     A contributor with `MPLBACKEND` already exported would make the test above
