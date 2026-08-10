@@ -83,6 +83,10 @@ the one that would fix it.
 | `dependency-review` | [run](https://github.com/iderex/plattenschrank/actions/runs/31216129759/job/92989968010) on the head of merged pull request #81 |
 | `package` | [run](https://github.com/iderex/plattenschrank/actions/runs/31306494130/job/93227605187) on the head of merged pull request #110 |
 | `bill of materials` | [run](https://github.com/iderex/plattenschrank/actions/runs/31306494130/job/93227605172) on the head of merged pull request #110 |
+| `CodeQL` | [run](https://github.com/iderex/plattenschrank/runs/93343754717) on the head of merged pull request #120 |
+| `Analyze (python)` | [run](https://github.com/iderex/plattenschrank/actions/runs/31351744124/job/93343761433) on the head of merged pull request #120 |
+| `Deterministic PR-hygiene checks` | [run](https://github.com/iderex/plattenschrank/actions/runs/31351744164/job/93343761724) on the head of merged pull request #120 |
+| `Enforce greppable invariants` | [run](https://github.com/iderex/plattenschrank/actions/runs/31351744169/job/93343761813) on the head of merged pull request #120 |
 
 `build` was also green on the heads of merged pull requests #103 and #104, and
 `dependency floor` has existed for one merged pull request, which is #105.
@@ -91,30 +95,62 @@ name is listed here after it has been green on a merged head and not before,
 because requiring a check that has never run green blocks every merge including
 the one that would fix it.
 
-Two notes for whoever applies it.
+The last four arrived with #113. Each was green on the head of merged pull
+request #114, which is the first merge after the one that added them, and again
+on the heads of #119 and #120:
+
+    gh api repos/iderex/plattenschrank/commits/f9aeabb/check-runs --jq '[.check_runs[] | select(.name | test("CodeQL|Analyze|hygiene|invariants")) | "\(.name) \(.conclusion)"] | unique'
+    ["Analyze (python) success","CodeQL success","Deterministic PR-hygiene checks success","Enforce greppable invariants success"]
+
+Twelve names now, where there were eight.
+
+Four notes for whoever applies it.
 
 Most of the names above are produced twice on the same commit, once by the push
 trigger and once by the pull-request trigger, because their workflows declare
 both. Which ones is counted rather than listed, since it follows from the
 triggers and moves when they do:
 
-    gh api repos/iderex/plattenschrank/commits/286d439/check-runs --jq '[.check_runs[].name] | group_by(.) | map({name: .[0], runs: length})'
-    [{"name":"Audit workflows (zizmor)","runs":1},{"name":"DCO sign-off","runs":1},{"name":"Reject Trojan Source Unicode","runs":2},{"name":"bill of materials","runs":2},{"name":"build","runs":2},{"name":"dependency floor","runs":2},{"name":"dependency-review","runs":1},{"name":"package","runs":2},{"name":"zizmor","runs":1}]
+    gh api repos/iderex/plattenschrank/commits/104a434/check-runs --jq '[.check_runs[].name] | group_by(.) | map({name: .[0], runs: length})'
+    [{"name":"Analyze (python)","runs":2},{"name":"Audit workflows (zizmor)","runs":1},{"name":"CodeQL","runs":1},{"name":"DCO sign-off","runs":1},{"name":"Deterministic PR-hygiene checks","runs":1},{"name":"Enforce greppable invariants","runs":2},{"name":"Reject Trojan Source Unicode","runs":2},{"name":"bill of materials","runs":2},{"name":"build","runs":2},{"name":"dependency floor","runs":2},{"name":"dependency-review","runs":1},{"name":"package","runs":2},{"name":"zizmor","runs":1}]
 
 Which of the two a required context binds to, or whether it binds to both, is
 not measured here and no command in this repository answers it. Check it before
 applying the list, because the answer decides whether one green run is enough.
-It was written here about one name when only one had the shape, then three, and
-it is five now, which is why the count above is read rather than restated.
+It was written here about one name when only one had the shape, then three, then
+five, and the count above is what it is today, which is why it is read rather
+than restated.
+
+`Deterministic PR-hygiene checks` has the opposite shape and it is the only name
+in the list that does. Its workflow declares a pull-request trigger and no push
+trigger, so it produces one run and produces none at all on a branch pushed
+without a pull request open. Every other name here can be exercised on a scratch
+branch; this one cannot, and a reader looking for it there will not find it.
 
 There is also a check run named `zizmor` on these commits. It is the
 code-scanning analysis produced by the SARIF upload, not a workflow job, and its
 upload step is deliberately allowed to fail without failing the gate. It is not
 in the list above for that reason: requiring it would make a merge depend on a
-step that is permitted to fail.
+step that is permitted to fail. `CodeQL` is a code-scanning check run of the
+same kind and is in the list, because the analysis that produces it has no step
+permitted to fail. That is the difference between the two rather than a
+judgement about which analysis matters more, and it is one line of the tree:
 
-Every other check-run name in the two tables above is absent from this list,
-because none of them has ever run.
+    git grep -nE '^[[:space:]]*continue-on-error:' -- .github/workflows/
+    .github/workflows/zizmor.yml:77:        continue-on-error: true
+
+Three check runs exist in this tree that the two tables above do not name, and
+none of them is proposed. `Scorecard analysis` declares a weekly schedule, a
+push to `main` and a change to the branch protection rule, so it never runs on a
+pull request and a required context would wait for a run that does not come.
+`integration (needs network)` and `integration (needs GPU)` declare a manual
+trigger and a weekly schedule and nothing else, so neither reaches a pull
+request either, and both are red today rather than passing on a selection that
+collected nothing.
+
+Every check-run name the two tables above resolve to is now in this list. What
+is not in it is the two rows that resolve to no context of their own, `prettier`
+and the offline check, and the three additions still owed by #14, #23 and #28.
 
 ## No check is required by the ruleset
 
