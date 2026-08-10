@@ -121,14 +121,24 @@ AN_ABSTENTION = an_annotation(
 )
 
 
-def test_the_published_schema_and_the_shipped_one_are_the_same_bytes() -> None:
+def test_the_published_schema_and_the_shipped_one_say_the_same_thing() -> None:
     """The copy the package carries may not drift from the published one.
 
     `docs/decisions/0009-label-scarcity-is-the-binding-constraint.md` fixes the
     published location and `docs/` is not shipped, so the package carries a
     copy. This is what stops the shipped rules and the published ones parting.
+
+    Compared as text rather than as bytes, and the difference matters here. This
+    repository declares no `.gitattributes`, so on a clone that translates line
+    endings the two files can be checked out with different ones while saying
+    exactly the same thing, and a byte comparison would red for a reason that is
+    about the checkout. `read_text` translates newlines, so what is compared is
+    every character that decides a rule. Whitespace inside a line is still a
+    difference and is still refused.
     """
-    assert PUBLISHED_SCHEMA.read_bytes() == SHIPPED_SCHEMA.read_bytes()
+    assert PUBLISHED_SCHEMA.read_text(encoding="utf-8") == SHIPPED_SCHEMA.read_text(
+        encoding="utf-8"
+    )
 
 
 def test_the_schema_states_the_version_inside_the_file() -> None:
