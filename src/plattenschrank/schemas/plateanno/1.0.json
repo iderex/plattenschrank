@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/iderex/plattenschrank/schemas/plateanno/1.0",
+  "title": "plateanno 1.0, the annotation exchange format",
+  "description": "One batch of annotations, as any platform writes them and as this repository reads them. docs/decisions/0009-label-scarcity-is-the-binding-constraint.md is where the format is decided and why it is a file rather than an integration. It carries more than one annotation of the same subject rather than a majority, it carries an abstention as its own outcome rather than as a missing row, and no property here is a direct identifier of a person.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "plateanno_version",
+    "batch_id",
+    "taxonomy_id",
+    "annotations"
+  ],
+  "properties": {
+    "plateanno_version": {
+      "description": "The version of this schema the batch was written against. It is inside the file rather than only in the file name, because a file that is copied loses its name first.",
+      "const": "1.0"
+    },
+    "batch_id": {
+      "description": "An opaque identifier for the annotation batch. Opaque means it is a token this repository never interprets, and it is not a place for a campaign name that describes who worked on it.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    },
+    "taxonomy_id": {
+      "description": "The taxonomy every class_id below is drawn from, named so that a batch labelled against one taxonomy cannot be read as though it were labelled against another. The artefact taxonomy this board will use is issue #49 and does not exist yet, so nothing here names its classes.",
+      "type": "string",
+      "minLength": 1
+    },
+    "annotations": {
+      "description": "Every annotation in the batch, in the order the batch carries them. Two entries with the same subject_id and different verdicts are a disagreement and both are kept.",
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/annotation"}
+    }
+  },
+  "$defs": {
+    "annotation": {
+      "description": "One person's answer about one subject on one scan.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subject_id",
+        "collection_id",
+        "plate_id",
+        "scan_id",
+        "region",
+        "class_id",
+        "abstained",
+        "confidence",
+        "seconds_taken",
+        "annotator_ref"
+      ],
+      "properties": {
+        "subject_id": {
+          "description": "What was shown to the annotator. Two annotations of one subject are what makes agreement computable, so this is what a disagreement is keyed on.",
+          "type": "string",
+          "minLength": 1
+        },
+        "collection_id": {
+          "description": "The collection the plate belongs to. Mandatory here for the reason it is mandatory on every measurement row: the evaluation protocol holds out whole collections.",
+          "type": "string",
+          "minLength": 1
+        },
+        "plate_id": {
+          "description": "The plate, unique inside its collection and only inside it.",
+          "type": "string",
+          "minLength": 1
+        },
+        "scan_id": {
+          "description": "The digitisation the region is in, because two scans of one plate disagree about pixel positions.",
+          "type": "string",
+          "minLength": 1
+        },
+        "region": {"$ref": "#/$defs/region"},
+        "class_id": {
+          "description": "The class from taxonomy_id, or null where the annotator abstained. Null and a class are the two answers; there is no third.",
+          "type": ["string", "null"],
+          "minLength": 1
+        },
+        "abstained": {
+          "description": "Whether the annotator said they could not tell. It is a first-class outcome rather than a missing row, because a hard example nobody could label is the most useful thing a hard example can say.",
+          "type": "boolean"
+        },
+        "confidence": {
+          "description": "How sure the annotator was, from 0 to 1, or null where they abstained. Null here is an absence and never a zero, because a zero is an answer.",
+          "type": ["number", "null"],
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "seconds_taken": {
+          "description": "How long this annotation took. Entry 5 of docs/personal-data-inventory.md is about exactly this field: timing separates two people with no name present anywhere.",
+          "type": "number",
+          "minimum": 0.0
+        },
+        "annotator_ref": {
+          "description": "Which annotator inside this batch, as a token that means nothing outside it. It exists so agreement can be computed and it is shaped so that an account name or an address does not fit. Whether an annotator identity is stored at all is entry 6 of issue #1 and is open; that answer is what a platform puts here, and it is not a change to this schema.",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
+        }
+      }
+    },
+    "region": {
+      "description": "The pixel region on the scan, in the scan's own frame rather than in sky coordinates.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": {"type": "number"},
+        "y": {"type": "number"},
+        "width": {"type": "number", "exclusiveMinimum": 0.0},
+        "height": {"type": "number", "exclusiveMinimum": 0.0}
+      }
+    }
+  }
+}
