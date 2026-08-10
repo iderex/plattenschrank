@@ -228,6 +228,26 @@ low risk, because entry 6 leaves the host and entry 2 turns an image into an
 index, and both matter regardless of which list they are on. And it does not say
 that entry 3 is settled either way.
 
+## Where the software reads this document
+
+One place, and it reads a person's judgement rather than the file. The
+federation manifest in `src/plattenschrank/federate.py` prints, for every column
+it would send, a sentence saying what that column can carry, and every one of
+those sentences comes from an entry above. The manifest says so on its own face,
+so an operator reading it is not left to think the sentence was derived from
+their data.
+
+Nothing parses this document, so the sentences are a copy and a copy drifts. Two
+things hold it. A column with no sentence is reported as not assessed rather
+than as carrying nothing, which is the direction that fails safely for whoever
+is deciding whether to confirm. And `tests/test_federate.py` refuses a
+measurement column with no entry, and an entry naming no measurement column, so
+a schema that moves without this document moving reds the suite.
+
+What that pair does not reach is a sentence that is simply wrong. Whether a
+column's entry describes it correctly is a judgement, no reading of the tree
+makes it, and the review is where a wrong one is caught.
+
 ## What is not covered here
 
 This inventory covers what the software can touch. It does not cover what an

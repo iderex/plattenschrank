@@ -20,15 +20,24 @@ refused before an address exists. Everything else in the package is held to that
 by an import check in ``tests/test_egress.py``, because the useful moment to
 catch a stage that builds its own socket is the pull request that adds it.
 
-## What the registry holds today, and why that is not a defect
+## What the registry holds today
 
-Nothing. No stage in this tree fetches anything yet, so there is no purpose to
-declare, and a purpose invented here would be a decision about an adapter taken
-in the wrong file. The consequence is stated rather than left to be discovered:
-the enumeration below ranges over an empty set today, so the test that reads it
-passes without reading a field. What shows that it reads a default at all is a
-declaration in the suite that carries one, and what shows it bites on this
-registry is the branch under ``scratch/`` that adds a default endpoint here.
+One purpose, ``federation``, which is where ``src/plattenschrank/federate.py``
+sends measurement rows an operator confirmed. It is here rather than invented at
+the call site because this file is the registry, and it is absent by default
+like everything else here: the operator types the endpoint on the command line
+and the field is ``None`` until they do.
+
+No stage in this tree fetches anything yet, so there is still no purpose for
+retrieval, and one invented here would be a decision about an adapter taken in
+the wrong file.
+
+The enumeration below reads one field rather than none, which is what it was
+written for. It is still not what shows it reads a DEFAULT: this registry's one
+purpose has the correct default, so the enumeration would report the same empty
+answer on a registry it could not read at all. What tells those apart is a
+declaration in the suite that carries a default, and what shows the check bites
+on this registry is the branch under ``scratch/`` that adds one here.
 
 ## What this does not refuse
 
@@ -93,6 +102,12 @@ class Egress:
     Frozen for the reason ``model.py`` gives: a configuration that can be changed
     after it has been read is a configuration two stages can disagree about.
     """
+
+    # Where measurement rows go when an operator federates them, and nowhere
+    # else. ``src/plattenschrank/federate.py`` builds a configuration carrying
+    # the destination the operator typed, so this is absent on every run nobody
+    # asked to federate, which is what decision 0014 is about.
+    federation: str | None = None
 
 
 # The configuration in force where the operator has configured nothing, which is

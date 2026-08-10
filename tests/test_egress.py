@@ -12,13 +12,14 @@ reason and a reader chasing one should not have to read the other.
 
 ## The default configuration
 
-``Egress`` declares no purpose today, so the enumeration below reads an empty
-set and passes without reading a field. That is the honest state of the tree and
-it is also the shape of a check that proves nothing, so it is not left standing
-alone. Three registries declared in this file carry a default endpoint, a purpose
-that cannot be left unset, and a purpose declared correctly, and the same
-enumeration is run over each. Those three are what show it reads a default at
-all, and they go on showing it after the first real purpose lands.
+``Egress`` declares one purpose, ``federation``, and its default is correct, so
+the enumeration below reads a field and still reports an empty answer. That is
+the honest state of the tree and it is also the shape of a check that proves
+nothing, because a reader that reported nothing whatever it was given would
+answer identically. So it is not left standing alone. Three registries declared
+in this file carry a default endpoint, a purpose that cannot be left unset, and
+a purpose declared correctly, and the same enumeration is run over each. Those
+three are what show it reads a default at all.
 
 ## The one way out
 
@@ -42,7 +43,7 @@ from __future__ import annotations
 import ast
 import socket
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
@@ -116,9 +117,16 @@ class ARegistryCarryingADefault(Egress):
 
 @dataclass(frozen=True)
 class ARegistryDemandingOne(Egress):
-    """A purpose with no default at all, so there is no empty configuration."""
+    """A purpose with no default at all, so there is no empty configuration.
 
-    archive_index: str | None
+    ``kw_only`` is here for the language rather than for the property. A field
+    without a default cannot follow one that has a default, and the registry
+    this inherits from now declares a purpose, so the declaration is illegal
+    positionally and legal as a keyword. What the enumeration reads is still a
+    field with no default, which is what this fixture is for.
+    """
+
+    archive_index: str | None = field(kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -171,7 +179,10 @@ def test_a_purpose_declared_correctly_is_not_reported() -> None:
     would make the first real endpoint impossible to declare.
     """
     assert defaulted_endpoints(ARegistryDeclaredCorrectly) == ()
-    assert declared_purposes(ARegistryDeclaredCorrectly) == ("probe",)
+    assert declared_purposes(ARegistryDeclaredCorrectly) == (
+        *declared_purposes(Egress),
+        "probe",
+    )
 
 
 def test_a_purpose_nobody_configured_is_refused() -> None:
