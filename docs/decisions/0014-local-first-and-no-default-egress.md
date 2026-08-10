@@ -99,3 +99,53 @@ Issue #15 stays open until issue #24 lands the blocked-socket proof for the unit
 suite and issue #71 lands the check that refuses a default egress, and until
 that check has been shown to go red when a default endpoint is added rather than
 only green while none is.
+
+## Where that condition was met
+
+The section above stands as it was written. What follows is what happened
+afterwards, and it does not replace it.
+
+Both halves it names are in place. The blocked-socket proof landed with issue
+#24: the refusal is installed at the socket layer inside the test process by
+`tests/conftest.py`, `tests/test_offline.py` is what reds when it is removed, and
+every run says the block is in force before it prints a result. The check that
+refuses a default egress landed with issue #71 in merge commit
+`14be2ed4376e504d836894a8c45f1120728c005a`, as
+`src/plattenschrank/egress.py` and `tests/test_egress.py`.
+
+There is now a configuration to resolve. `Egress` is the registry of every
+outbound endpoint this software can be configured with, one field per purpose,
+each admitting absence and absent unless an operator sets it, and
+`defaulted_endpoints` reads the ones that are anything else. It declares no
+purpose today, because no stage in this tree fetches anything, and the module
+says so rather than leaving a reader to conclude that an empty answer was a
+measured one.
+
+The rule that a connection is made for the purpose it was configured for is in
+`connect`, which looks the purpose up and refuses before an address exists, and
+the second way round it is refused by an import check holding every other module
+in the package away from a network library.
+
+Read against `main` at `14be2ed4376e504d836894a8c45f1120728c005a`:
+
+    https://github.com/iderex/plattenschrank/actions/runs/31351321736
+    uid=1001 user=runner DISPLAY=<unset> WAYLAND_DISPLAY=<unset>
+    outbound connections are refused in this suite, except to 127.0.0.1, ::1, localhost
+    284 passed, 1 warning in 3.66s
+
+The last part of the condition is the one that separates a check from a green
+result, and it is the reason this section can be written at all. The check was
+shown to go red when a default endpoint is added, on a branch carrying that and
+nothing else:
+
+    https://github.com/iderex/plattenschrank/actions/runs/31350044150
+    FAILED tests/test_egress.py::test_the_default_configuration_names_no_endpoint - AssertionError: assert ('archive_index',) == ()
+    branch scratch/egress-reds-when-a-default-endpoint-is-added
+
+What is still not refused anywhere is the rule's own subject rather than its
+default. Nothing here reads a running process, so a build that reached the
+network would be caught by the suite and by nothing else, and the block that
+catches it is a test-process refusal rather than a property of the shipped
+software. The bounds on that block are named in `tests/conftest.py` and stay
+named: it does not reach name resolution, a raw send, or a subprocess the suite
+starts.
