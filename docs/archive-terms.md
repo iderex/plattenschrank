@@ -18,10 +18,9 @@ state it and quotes nothing, because a summary of an absent term is an invention
 | NAROO | Not established, the site did not answer | Not established | Not established | Not established |
 | DFBS | Not stated, one sentence about access | Not stated | Not stated | Not stated |
 
-One of the four publishes a licence. That is the finding this document exists to
-record, and it is the opposite of the assumption the issue was written under,
-which was that each archive publishes under its own terms and asks for its own
-citation. Two of them ask for a citation. One states a licence. One could not be
+One of the four publishes a licence. The issue was written under the opposite
+assumption, that each archive publishes under its own terms and asks for its own
+citation, and the table above is what came back instead. Two of them ask for a citation. One states a licence. One could not be
 read at all from here.
 
 ## DASCH

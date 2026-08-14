@@ -72,7 +72,7 @@ and dates, in an indexed text field.
 Where it enters. It is created here. The transcription component reads the image
 and writes text.
 
-This is the entry to read carefully, and it is the reason this document exists
+This is the entry to read carefully, and it is why the inventory is written
 before the component is built. A name in a scanned image and a name in an
 indexed text field are not the same processing. The first is hard to search and
 is found by someone who was already looking at that plate. The second is found
