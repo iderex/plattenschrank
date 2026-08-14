@@ -40,21 +40,20 @@ count cannot be compared with either.
 
 ## Why
 
-There are more than five hundred thousand machine-readable plates and there is
-no labelled corpus of plate artefacts, no labelled corpus of overlapping prism
-traces, and no transcribed corpus of German handwritten plate envelopes at a
-size that trains anything. Compute is not the constraint here and neither is
-data volume. The number of hours a person with the right expertise will spend
-drawing boxes is the constraint, and it is small.
+There are more than five hundred thousand machine-readable plates. Nothing
+labelled exists at a size that trains anything: not for plate artefacts, not for
+overlapping prism traces, not for German handwritten plate envelopes. Compute is
+not the constraint here and neither is data volume. The number of hours a person
+with the right expertise will spend drawing boxes is the constraint, and it is
+small.
 
-Saying so in the plan rather than discovering it later changes what gets built.
-It makes active learning a first-class part of the design rather than an
-optimisation. It makes agreement between annotators something the format has to
-carry. It makes weak supervision and simulation load-bearing rather than
-optional.
+Writing that into the plan changes what gets built, and finding it out halfway
+through does not. Active learning becomes a first-class part of the design.
+Agreement between annotators becomes something the format has to carry. Weak
+supervision and simulation become load-bearing.
 
-Keeping the loop as a file format rather than an integration is what stops one
-annotation platform becoming a hard dependency of the science. The public
+Keeping the loop as a file format is what stops one annotation platform
+becoming a hard dependency of the science. The public
 repository `iderex/lesesaal` is building a self-hostable annotation platform,
 and this format is what connects the two. If that platform is never used here,
 the format still works with anything else, and if it is used, nothing in this
@@ -66,14 +65,15 @@ Building an annotation user interface inside this repository. It doubles the
 surface, it is a different discipline, and it makes the pipeline depend on a web
 stack that has nothing to do with plates.
 
-Treating labels as a fixed input that arrives from somewhere. That is the
-assumption that produces the late discovery this decision exists to prevent.
+Treating labels as a fixed input that arrives from somewhere. That assumption
+is what leaves the shortage to be discovered halfway through the build, and
+this record is written before that can happen.
 
 ## What this record leaves open
 
 Whether an annotator identity is stored at all is not decided here. It is
 entry 6 of issue #1 and it belongs to the maintainer. The format is built so
-that the answer is a configuration rather than a schema change.
+that the answer is a configuration setting and no schema version moves with it.
 
 ## The condition this record does not yet satisfy
 
@@ -82,6 +82,6 @@ on a published evaluation report. No such report exists:
 
     git ls-files docs/ | grep -i eval
 
-returns nothing. An absent report is not a report that passes, so that half of
-the condition is unmet rather than satisfied, and issue #10 stays open until the
-first evaluation report carries the count.
+returns nothing. An absent report is not a report that passes. That half of the
+condition is unmet, and issue #10 stays open until the first evaluation report
+carries the count.
