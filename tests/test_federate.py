@@ -168,6 +168,9 @@ def release(host: str, port: int) -> None:
         with socket.create_connection((host, port), timeout=1):
             pass
     except OSError:
+        # The accepting thread already returned, or the listening socket is
+        # gone. Either way there is nothing left to release, and raising out of
+        # teardown would bury the assertion the test is actually reporting.
         pass
 
 
