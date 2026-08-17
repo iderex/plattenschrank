@@ -89,7 +89,6 @@ _READ_FIELD: Final = SCHEMA["$defs"]["read_field"]
 _CONFIDENCE: Final = _READ_FIELD["properties"]["confidence"]
 
 # Everything below is derived from the schema above. None of it is a list.
-EXTRACTION_SCHEMA_ID: Final[str] = SCHEMA["$id"]
 DOCUMENT_KEYS: Final[frozenset[str]] = frozenset(SCHEMA["properties"])
 REQUIRED_DOCUMENT_KEYS: Final[frozenset[str]] = frozenset(SCHEMA["required"])
 FIELD_NAMES: Final[frozenset[str]] = frozenset(

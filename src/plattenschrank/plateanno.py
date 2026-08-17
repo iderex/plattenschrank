@@ -116,7 +116,6 @@ _REGION: Final = SCHEMA["$defs"]["region"]
 _CONFIDENCE: Final = _ANNOTATION["properties"]["confidence"]
 
 # Derived from the schema above. None of it is a list written twice.
-SCHEMA_ID: Final[str] = SCHEMA["$id"]
 FORMAT_VERSION: Final[str] = SCHEMA["properties"]["plateanno_version"]["const"]
 BATCH_KEYS: Final[frozenset[str]] = frozenset(SCHEMA["properties"])
 REQUIRED_BATCH_KEYS: Final[frozenset[str]] = frozenset(SCHEMA["required"])
